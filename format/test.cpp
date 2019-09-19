@@ -18,8 +18,6 @@ template<size_t Idx, typename String, typename ...Args>
 constexpr void parseChar(String string, Args&& ...args)
 {
     constexpr std::string_view text = string();
-    static_assert(text[text.size()] == '\0');
-
     ifc (text[Idx] == '%') {
         parsePercent<Idx + 1>(string, std::forward<Args>(args)...);
     } elifc (Idx < text.size()) {
@@ -120,7 +118,7 @@ constexpr void parsePercent(String string, Args&& ...args)
     } elifc (text[Idx] == 'f' || text[Idx] == 'g') {
         parseFloat<Idx + 1>(string, std::forward<Args>(args)...);
     } elifc (text[Idx] == '%') {
-        parseChar<Idx + 1>(string);
+        parseChar<Idx + 1>(string, std::forward<Args>(args)...);
     } else {
         static_assert(dependent_false<String>::value, "Invalid format specifier");
     }
@@ -129,7 +127,8 @@ constexpr void parsePercent(String string, Args&& ...args)
 template<typename String, typename ...Args>
 constexpr void parse(String string, Args&& ...args)
 {
-    //constexpr std::string_view text = string();
+    constexpr std::string_view text = string();
+    static_assert(text[text.size()] == '\0');
     parseChar<0>(string, std::forward<Args>(args)...);
 }
 
