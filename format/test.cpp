@@ -7,6 +7,10 @@
 #define ifc if constexpr
 #define elifc else if constexpr
 
+template<typename T> struct dependent_false : std::false_type
+{
+};
+
 template<size_t Idx, typename String, typename ...Args>
 constexpr void parsePercent(String string, Args&& ...args);
 
@@ -20,6 +24,8 @@ constexpr void parseChar(String string, Args&& ...args)
         parsePercent<Idx + 1>(string, std::forward<Args>(args)...);
     } elifc (Idx < text.size()) {
         parseChar<Idx + 1>(string, std::forward<Args>(args)...);
+    } elifc (sizeof...(args) > 0) {
+        static_assert(dependent_false<String>::value, "Extraneous arguments passed");
     }
     static_assert(text[Idx] != 'f', "can't have f");
 }
@@ -32,6 +38,13 @@ constexpr void parseInt(String string, Arg i, Args&& ...args)
     static_assert((sizeof(ArgType) == sizeof(FormatType) && std::is_unsigned<ArgType>::value == std::is_unsigned<FormatType>::value) || sizeof(ArgType) < sizeof(FormatType),
         "Wrong int type");
     parseChar<Idx + Skip>(string, std::forward<Args>(args)...);
+}
+
+template<size_t Idx, typename String, typename Arg, typename ...Args>
+constexpr void parseFloat(String string, Arg f, Args&& ...args)
+{
+    static_assert(std::is_arithmetic<typename std::decay<Arg>::type>::value, "Argument is not arithmetic");
+    parseChar<Idx>(string, std::forward<Args>(args)...);
 }
 
 template<class T>
@@ -104,8 +117,12 @@ constexpr void parsePercent(String string, Args&& ...args)
         parseInt<Idx + 1, 2, unsigned long long>(string, std::forward<Args>(args)...);
     } elifc (text[Idx] == 's') {
         parseString<Idx + 1>(string, std::forward<Args>(args)...);
-    } else {
+    } elifc (text[Idx] == 'f' || text[Idx] == 'g') {
+        parseFloat<Idx + 1>(string, std::forward<Args>(args)...);
+    } elifc (text[Idx] == '%') {
         parseChar<Idx + 1>(string);
+    } else {
+        static_assert(dependent_false<String>::value, "Invalid format specifier");
     }
 }
 
@@ -126,6 +143,6 @@ int main(int, char**)
     //NERROR("ghod %llu%s%u\n", ball, "ting", 1u);
     Foobar2 f;
     std::string s;
-    NERROR("ghod %llu%s%u %s\n", ball, f, 1u, std::move(s));
+    NERROR("ghod %llu%s%u %s %f\n", ball, f, 1u, std::move(s), 1.3);
     //parse(foo);
 }
