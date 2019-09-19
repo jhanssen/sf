@@ -35,17 +35,20 @@ constexpr void parseInt(String string, Arg i, Args&& ...args)
 }
 
 template<class T>
-struct is_c_str : std::integral_constant<
+struct is_c_string : std::integral_constant<
     bool,
     std::is_same<const char*, typename std::decay<T>::type>::value ||
     std::is_same<char*, typename std::decay<T>::type>::value>
 {
 };
 
-std::string to_string(const char* a)
+template<class T>
+struct is_string : std::integral_constant<
+    bool,
+    is_c_string<T>::value ||
+    std::is_same<std::string, typename std::decay<T>::type>::value>
 {
-    return a;
-}
+};
 
 struct Foobar1
 {
@@ -77,9 +80,9 @@ struct has_global_to_string<T, std::void_t<decltype(to_string(std::declval<T>())
 };
 
 template<size_t Idx, typename String, typename Arg, typename ...Args>
-constexpr void parseCharStar(String string, Arg s, Args&& ...args)
+constexpr void parseString(String string, Arg s, Args&& ...args)
 {
-    static_assert(has_global_to_string<Arg>::value);
+    static_assert(is_string<Arg>::value || has_global_to_string<Arg>::value, "Needs to be a string or have a global to_string");
     parseChar<Idx>(string, std::forward<Args>(args)...);
 }
 
@@ -100,7 +103,7 @@ constexpr void parsePercent(String string, Args&& ...args)
     } elifc (text[Idx] == 'l' && text[Idx + 1] == 'l' && text[Idx + 2] == 'u') {
         parseInt<Idx + 1, 2, unsigned long long>(string, std::forward<Args>(args)...);
     } elifc (text[Idx] == 's') {
-        parseCharStar<Idx + 1>(string, std::forward<Args>(args)...);
+        parseString<Idx + 1>(string, std::forward<Args>(args)...);
     } else {
         parseChar<Idx + 1>(string);
     }
@@ -122,6 +125,7 @@ int main(int, char**)
     uint32_t ball = 1;
     //NERROR("ghod %llu%s%u\n", ball, "ting", 1u);
     Foobar2 f;
-    NERROR("ghod %llu%s%u\n", ball, f, 1u);
+    std::string s;
+    NERROR("ghod %llu%s%u %s\n", ball, f, 1u, std::move(s));
     //parse(foo);
 }
