@@ -25,7 +25,6 @@ constexpr void parseChar(String string, Args&& ...args)
     } elifc (sizeof...(args) > 0) {
         static_assert(dependent_false<String>::value, "Extraneous arguments passed");
     }
-    static_assert(text[Idx] != 'f', "can't have f");
 }
 
 template<size_t Idx, typename FormatType, typename String, typename Arg, typename ...Args>
