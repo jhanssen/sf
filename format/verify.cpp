@@ -390,6 +390,6 @@ int main(int, char**)
     //NERROR("ghod %llu%s%u %s %u %zu %20s\n", ball, f, 1u, std::move(s), 1, sz, f);
     //NERROR("hey %*.*s %f %n\n", 1, 1, "foo", 1, ball64);
     long double a = 1.2;
-    NERROR("hey %*.*s %hhn%p%Lf\n", 1, 1, f, &i, &i, a);
+    NERROR("hey %*.*s %hhn%p%fe\n", 1, 1, f, &i, &i, 1.);
     //parse(foo);
 }

@@ -38,6 +38,10 @@ struct BufferWriter
 
     void put(char c) { buffer[bufferoff++] = c; }
     void put(const char* c, size_t s) { const size_t m = std::min(s, buffersize - bufferoff); memcpy(buffer + bufferoff, c, m); bufferoff += m; }
+    void put(const char* c) { const size_t m = std::min(strlen(c), buffersize - bufferoff); memcpy(buffer + bufferoff, c, m); bufferoff += m; }
+    template<size_t N>
+    void put(const char (&c)[N]) { const size_t m = std::min(N, buffersize - bufferoff); memcpy(buffer + bufferoff, c, m); bufferoff += m; }
+
     size_t offset() const { return bufferoff; }
     size_t size() const { return buffersize; }
     size_t terminate() { if (bufferoff < buffersize) buffer[bufferoff] = '\0'; return bufferoff; }
@@ -50,6 +54,9 @@ struct FileWriter
 
     void put(char c) { fputc(c, file); ++bufferoff; }
     void put(const char* c, size_t s) { fwrite(c, 1, s, file); bufferoff += s; }
+    void put(const char* c) { const size_t s = strlen(c); fwrite(c, 1, s, file); bufferoff += s; }
+    template<size_t N>
+    void put(const char (&c)[N]) { fwrite(c, 1, N, file); bufferoff += N; }
 
     size_t offset() const { return bufferoff; }
     size_t size() const { return std::numeric_limits<size_t>::max(); }
@@ -118,6 +125,14 @@ struct is_stringish : std::integral_constant<
 {
 };
 
+template<class T>
+struct is_float_double : std::integral_constant<
+    bool,
+    std::is_same<float, typename std::decay<T>::type>::value ||
+    std::is_same<double, typename std::decay<T>::type>::value>
+{
+};
+
 template<typename T> struct dependent_false : std::false_type
 {
 };
@@ -125,14 +140,15 @@ template<typename T> struct dependent_false : std::false_type
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_c_string<Arg>::value, void>::type* = nullptr>
 int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    writer.put(arg, strlen(arg));
+    writer.put(arg);
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<typename std::decay<Arg>::type, std::string>::value, void>::type* = nullptr>
 int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_execute_str(state, writer, format, formatoff, arg.c_str(), std::forward<Args>(args)...);
+    writer.put(arg.c_str(), arg.size());
+    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<has_global_to_string<Arg>::value, void>::type* = nullptr>
@@ -145,6 +161,18 @@ template<typename Writer, typename Arg, typename ...Args, typename std::enable_i
 int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
     return print_error("not a stringish", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<float, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_arithmetic<Arg>::value, void>::type* = nullptr>
+int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("not an arithmetic", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args>
@@ -163,7 +191,7 @@ int print_execute(State& state, Writer& writer, const char* format, size_t forma
     case 'X':
         break;
     case 'f':
-        break;
+        return print_execute_float(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'F':
         break;
     case 'e':
@@ -358,6 +386,9 @@ int main(int, char**)
     // printf("%d -> '%s'\n", i, buf);
     //const int i = snprint(buf, sizeof(buf), "hello %s\n", "hello");
 
-    const int i = print("hello %s%s\n", "ting", "tang");
+    std::string tang = "tang";
+    const int i = print("hello %s%s %f\n", "ting", tang, std::numeric_limits<float>::max());
+    // printf("%f\n", std::numeric_limits<double>::max());
+    printf("%f\n", std::numeric_limits<float>::max());
     return i;
 }
