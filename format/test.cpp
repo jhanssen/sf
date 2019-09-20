@@ -44,11 +44,11 @@ constexpr void parseExact(String string, Arg i, Args&& ...args)
     parseChar<Idx>(string, std::forward<Args>(args)...);
 }
 
-template<size_t Idx, typename String, typename Arg, typename ...Args>
-constexpr void parseFloat(String string, Arg f, Args&& ...args)
+template<size_t Idx, typename FormatType, typename String, typename Arg, typename ...Args>
+constexpr void parseDouble(String string, Arg f, Args&& ...args)
 {
     using ArgType = typename std::remove_cv<typename std::remove_reference<Arg>::type>::type;
-    static_assert(std::is_arithmetic<ArgType>::value, "Argument is not arithmetic");
+    static_assert((std::is_same<ArgType, float>::value && std::is_same<FormatType, double>::value) || std::is_same<ArgType, FormatType>::value, "Wrong double type");
     parseChar<Idx>(string, std::forward<Args>(args)...);
 }
 
@@ -227,6 +227,18 @@ struct TypeType<signed char, LengthType::l>
     typedef wint_t type;
 };
 
+template<>
+struct TypeType<double, LengthType::None>
+{
+    typedef double type;
+};
+
+template<>
+struct TypeType<double, LengthType::L>
+{
+    typedef long double type;
+};
+
 template<size_t Idx, size_t Stars, LengthType Length, typename String, typename ...Args>
 constexpr void parsePercentSpecifier(String string, Args&& ...args);
 
@@ -279,11 +291,7 @@ constexpr void parsePercentSpecifier(String string, Args&& ...args)
         } elifc (text[Idx] == 'n') {
             parseExact<Idx + 1, typename std::add_pointer<typename TypeType<int, Length>::type>::type>(string, std::forward<Args>(args)...);
         } elifc (text[Idx] == 'f' || text[Idx] == 'F' || text[Idx] == 'e' || text[Idx] == 'E' || text[Idx] == 'g' || text[Idx] == 'G' || text[Idx] == 'a' || text[Idx] == 'A') {
-            ifc (Length == LengthType::None || Length == LengthType::L) {
-                parseFloat<Idx + 1>(string, std::forward<Args>(args)...);
-            } else {
-                static_assert(dependent_false<String>::value, "Invalid double length");
-            }
+            parseDouble<Idx + 1, typename TypeType<double, Length>::type>(string, std::forward<Args>(args)...);
         } else {
             static_assert(dependent_false<String>::value, "Invalid format specifier");
         }
@@ -381,6 +389,7 @@ int main(int, char**)
     size_t sz;
     //NERROR("ghod %llu%s%u %s %u %zu %20s\n", ball, f, 1u, std::move(s), 1, sz, f);
     //NERROR("hey %*.*s %f %n\n", 1, 1, "foo", 1, ball64);
-    NERROR("hey %*.*s %hhn%p\n", 1, 1, f, &i, &i);
+    long double a = 1.2;
+    NERROR("hey %*.*s %hhn%p%Lf\n", 1, 1, f, &i, &i, a);
     //parse(foo);
 }
