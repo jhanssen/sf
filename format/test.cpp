@@ -382,6 +382,6 @@ int main(int, char**)
     size_t sz;
     //NERROR("ghod %llu%s%u %s %u %zu %20s\n", ball, f, 1u, std::move(s), 1, sz, f);
     //NERROR("hey %*.*s %f %n\n", 1, 1, "foo", 1, ball64);
-    NERROR("hey %*.*s %hhn%lp\n", 1, 1, f, &i, &i);
+    NERROR("hey %*.*s %hhn%p\n", 1, 1, f, &i, &i);
     //parse(foo);
 }
