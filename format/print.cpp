@@ -11,7 +11,7 @@ using namespace std::chrono;
 
 struct State
 {
-    enum { None = -2 };
+    enum { None = -1, Star = -2 };
     enum class Flags
     {
         None        = 0x00,
@@ -31,8 +31,8 @@ struct State
     };
     Flags flags;
     Length length;
-    int width; // -1 means *, additional argument will contain the actual number
-    int precision; // // -1 means *, additional argument will contain the actual number
+    int width; // can be Star which means that an additional argument will contain the actual number
+    int precision; // can be Star which means that an additional argument will contain the actual number
     Specifier specifier;
 };
 
@@ -851,7 +851,7 @@ template<typename Writer, typename Arg, typename ...Args, typename std::enable_i
 int print_get_width_argument(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
     state.width = arg;
-    if (state.precision == -1) {
+    if (state.precision == State::Star) {
         return print_get_precision_argument(state, writer, format, formatoff, std::forward<Args>(args)...);
     }
     return print_execute(state, writer, format, formatoff, std::forward<Args>(args)...);
@@ -909,9 +909,9 @@ int print_get_length(State& state, Writer& writer, const char* format, size_t fo
         break;
     }
 
-    if (state.width == -1) {
+    if (state.width == State::Star) {
         return print_get_width_argument(state, writer, format, formatoff, std::forward<Args>(args)...);
-    } else if (state.precision == -1) {
+    } else if (state.precision == State::Star) {
         return print_get_precision_argument(state, writer, format, formatoff, std::forward<Args>(args)...);
     } else {
         return print_execute(state, writer, format, formatoff, std::forward<Args>(args)...);
@@ -931,7 +931,7 @@ int print_get_precision(State& state, Writer& writer, const char* format, size_t
             state.precision *= mul;
             state.precision += format[formatoff] - '0';
         } else if (format[formatoff] == '*') {
-            state.precision = -1;
+            state.precision = State::Star;
             return print_get_length(state, writer, format, formatoff + 1, std::forward<Args>(args)...);
         } else if (format[formatoff] == '\0') {
             return print_error("precision", state, format, formatoff);
@@ -951,7 +951,7 @@ int print_get_width(State& state, Writer& writer, const char* format, size_t for
             state.width *= mul;
             state.width += format[formatoff] - '0';
         } else if (format[formatoff] == '*') {
-            state.width = -1;
+            state.width = State::Star;
             return print_get_precision(state, writer, format, formatoff + 1, std::forward<Args>(args)...);
         } else if (format[formatoff] == '\0') {
             return print_error("width", state, format, formatoff);
