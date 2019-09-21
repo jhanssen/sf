@@ -221,7 +221,7 @@ int print_execute_int_10(State& state, Writer& writer, const char* format, size_
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_int_10(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_error("Argument is not integral", state, format, formatoff);
+    return print_error("Argument 10 is not integral", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
@@ -317,7 +317,7 @@ int print_execute_int_16(State& state, Writer& writer, const char* format, size_
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_int_16(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
 {
-    return print_error("Argument is not integral", state, format, formatoff);
+    return print_error("Argument 16 is not integral", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
@@ -412,7 +412,7 @@ int print_execute_int_8(State& state, Writer& writer, const char* format, size_t
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_int_8(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_error("Argument is not integral", state, format, formatoff);
+    return print_error("Argument 8 is not integral", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_pointer<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
@@ -599,7 +599,7 @@ int print_execute_str(State& state, Writer& writer, const char* format, size_t f
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!is_stringish<Arg>::value, void>::type* = nullptr>
 int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_error("not a stringish", state, format, formatoff);
+    return print_error("Argument is not a stringish", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<Arg>::value, void>::type* = nullptr>
@@ -631,7 +631,7 @@ int print_execute_ch(State& state, Writer& writer, const char* format, size_t fo
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<Arg>::value, void>::type* = nullptr>
 int print_execute_ch(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_error("not a char", state, format, formatoff);
+    return print_error("Argument is not a char", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
@@ -646,13 +646,13 @@ int print_execute_float(State& state, Writer& writer, const char* format, size_t
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<long double, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_error("long double not implemented", state, format, formatoff);
+    return print_error("Long double not implemented", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_floating_point<Arg>::value, void>::type* = nullptr>
 int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_error("not a floating point", state, format, formatoff);
+    return print_error("Argument is not a floating point", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
@@ -775,13 +775,13 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<long double, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_error("long double not implemented", state, format, formatoff);
+    return print_error("Long double not implemented", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_floating_point<Arg>::value, void>::type* = nullptr>
 int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_error("not a floating point", state, format, formatoff);
+    return print_error("Argument is not a floating point", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args>
@@ -805,9 +805,9 @@ int print_execute(State& state, Writer& writer, const char* format, size_t forma
     case 'E':
     case 'a':
     case 'A':
-        return print_error("not implemented", state, format, formatoff);
-    case 'g':
     case 'G':
+        return print_error("e/E/a/A/G not implemented", state, format, formatoff);
+    case 'g':
         return print_execute_float_shortest(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'c':
         return print_execute_ch(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
@@ -818,7 +818,7 @@ int print_execute(State& state, Writer& writer, const char* format, size_t forma
     case 'n':
         return print_execute_store(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     default:
-        return print_error("invalid specifier", state, format, formatoff);
+        return print_error("Invalid specifier", state, format, formatoff);
     }
     return print_helper(state, writer, format, formatoff + 1, std::forward<Args>(args)...);
 }
@@ -839,13 +839,13 @@ int print_get_precision_argument(State& state, Writer& writer, const char* forma
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_same<int, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_get_precision_argument(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_error("invalid precision argument", state, format, formatoff);
+    return print_error("Invalid precision argument", state, format, formatoff);
 }
 
 template<typename Writer>
 int print_get_precision_argument(State& state, Writer& writer, const char* format, size_t formatoff)
 {
-    return print_error("no precision argument", state, format, formatoff);
+    return print_error("No precision argument", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<int, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
@@ -861,13 +861,13 @@ int print_get_width_argument(State& state, Writer& writer, const char* format, s
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_same<int, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_get_width_argument(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_error("invalid width argument", state, format, formatoff);
+    return print_error("Invalid width argument", state, format, formatoff);
 }
 
 template<typename Writer>
 int print_get_width_argument(State& state, Writer& writer, const char* format, size_t formatoff)
 {
-    return print_error("no width argument", state, format, formatoff);
+    return print_error("No width argument", state, format, formatoff);
 }
 
 template<typename Writer, typename ...Args>
@@ -908,6 +908,8 @@ int print_get_length(State& state, Writer& writer, const char* format, size_t fo
         state.length = State::Length::L;
         ++formatoff;
         break;
+    case '\0':
+        return print_error("Zero termination encountered in length extraction", state, format, formatoff);
     }
 
     if (state.width == State::Star) {
@@ -935,7 +937,7 @@ int print_get_precision(State& state, Writer& writer, const char* format, size_t
             state.precision = State::Star;
             return print_get_length(state, writer, format, formatoff + 1, std::forward<Args>(args)...);
         } else if (format[formatoff] == '\0') {
-            return print_error("precision", state, format, formatoff);
+            return print_error("Zero termination encountered in precision extraction", state, format, formatoff);
         } else {
             return print_get_length(state, writer, format, formatoff, std::forward<Args>(args)...);
         }
@@ -955,7 +957,7 @@ int print_get_width(State& state, Writer& writer, const char* format, size_t for
             state.width = State::Star;
             return print_get_precision(state, writer, format, formatoff + 1, std::forward<Args>(args)...);
         } else if (format[formatoff] == '\0') {
-            return print_error("width", state, format, formatoff);
+            return print_error("Zero termination encountered in width extraction", state, format, formatoff);
         } else {
             return print_get_precision(state, writer, format, formatoff, std::forward<Args>(args)...);
         }
@@ -983,7 +985,7 @@ int print_get_flags(State& state, Writer& writer, const char* format, size_t for
             state.flags |= State::Flags::ZeroPad;
             break;
         case '\0':
-            return print_error("flags", state, format, formatoff);
+            return print_error("Zero termination encountered in flags extraction", state, format, formatoff);
         default:
             return print_get_width(state, writer, format, formatoff, std::forward<Args>(args)...);
         }
