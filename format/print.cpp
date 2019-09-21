@@ -5,6 +5,10 @@
 #include <assert.h>
 #include <ryu/ryu2.h>
 
+#include <chrono>
+
+using namespace std::chrono;
+
 struct State
 {
     enum class Flags
@@ -61,7 +65,7 @@ struct FileWriter
 
     size_t offset() const { return bufferoff; }
     size_t size() const { return std::numeric_limits<size_t>::max(); }
-    size_t terminate() { fputc('\0', file); return bufferoff; }
+    size_t terminate() { return bufferoff; }
 };
 
 State::Flags& operator|=(State::Flags& l, State::Flags r)
@@ -523,8 +527,28 @@ int main(int, char**)
     //const int i = snprint(buf, sizeof(buf), "hello %s\n", "hello");
 
     std::string tang = "tang";
-    const int i = print("hello %s%s %g\n", "ting", tang, 12234.15281);
-    // printf("%f\n", std::numeric_limits<double>::max());
-    printf("%g\n", 12234.15281);
-    return i;
+    char buffer[1024];
+
+    enum { Iter = 10000 };
+
+    auto t1 = steady_clock::now();
+    for (int i = 0; i < Iter; ++i) {
+        snprint(buffer, sizeof(buffer), "hello2 %f\n", 12234.15281);
+    }
+
+    auto t2 = steady_clock::now();
+    double delta1 = duration_cast<nanoseconds>(t2 - t1).count() / static_cast<double>(Iter);
+
+    auto t3 = steady_clock::now();
+    for (int i = 0; i < Iter; ++i) {
+        snprintf(buffer, sizeof(buffer), "hello1 %f\n", 12234.15281);
+    }
+
+    auto t4 = steady_clock::now();
+    double delta2 = duration_cast<nanoseconds>(t4 - t3).count() / static_cast<double>(Iter);
+
+    printf("took, me   %f\n", delta1);
+    printf("took, them %f\n", delta2);
+
+    return 0;
 }
