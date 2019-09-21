@@ -188,6 +188,283 @@ int print_execute_int_10(State& state, Writer& writer, const char* format, size_
     return print_error("Argument is not integral", state, format, formatoff);
 }
 
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_16(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
+{
+    // adapted from http://ideone.com/nrQfA8
+
+    typedef typename std::decay<Arg>::type ArgType;
+    typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
+    typedef std::numeric_limits<ArgType> Info;
+
+    UnsignedArgType number = static_cast<UnsignedArgType>(arg);
+
+    const int digits = Info::digits10;
+    const int bufsize = digits + 2;
+
+    char buffer[bufsize];
+    char* bufptr = buffer;
+    char extra = 0;
+
+    if (state.flags & State::Flags::Prefix)
+        extra = alphabet[16];
+
+    if (number == 0) {
+        *bufptr++ = '0';
+    } else {
+        char* p_first = bufptr;
+        while (number != 0)
+        {
+            *bufptr++ = alphabet[number & 0xf];
+            number >>= 4;
+        }
+        std::reverse(p_first, bufptr);
+    }
+
+    const size_t n = bufptr - buffer;
+    const bool left = state.flags & State::Flags::LeftJustify;
+
+    int precision = 0;
+    if (state.precision != State::None) {
+        assert(state.precision >= 0);
+        precision = state.precision;
+
+        // precision of 0 means that the number 0 should not be emitted
+        if (!precision && n == 1 && buffer[n] == '0')
+            return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+    }
+
+    int pad = 0;
+    if (state.width != State::None) {
+        assert(state.width >= 0);
+        pad = std::max<int>(0, state.width - (n + (extra ? 2 : 0)));
+    }
+    char padchar = ' ';
+    if ((state.flags & State::Flags::ZeroPad) && !left && !precision)
+        padchar = '0';
+
+    if (precision)
+        pad = std::max(0, pad - precision);
+
+    if (extra && padchar == '0') {
+        writer.put('0');
+        writer.put(extra);
+    }
+
+    if (pad && !left) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(padchar);
+    }
+
+    if (extra && padchar == ' ') {
+        writer.put('0');
+        writer.put(extra);
+    }
+
+    if (precision) {
+        for (int i = 0; i < precision; ++i)
+            writer.put('0');
+    }
+
+    writer.put(buffer, n);
+
+    if (pad && left) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(padchar);
+    }
+
+    // do stuff
+    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_16(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument is not integral", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_8(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    // adapted from http://ideone.com/nrQfA8
+
+    typedef typename std::decay<Arg>::type ArgType;
+    typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
+    typedef std::numeric_limits<ArgType> Info;
+
+    UnsignedArgType number = static_cast<UnsignedArgType>(arg);
+
+    const int digits = Info::digits10;
+    const int bufsize = digits + 2;
+
+    char buffer[bufsize];
+    char* bufptr = buffer;
+    char extra = 0;
+
+    if (state.flags & State::Flags::Prefix)
+        extra = '0';
+
+    if (number == 0) {
+        *bufptr++ = '0';
+    } else {
+        char* p_first = bufptr;
+        while (number != 0)
+        {
+            *bufptr++ = '0' + (number & 0x7);
+            number >>= 3;
+        }
+        std::reverse(p_first, bufptr);
+    }
+
+    const size_t n = bufptr - buffer;
+    const bool left = state.flags & State::Flags::LeftJustify;
+
+    int precision = 0;
+    if (state.precision != State::None) {
+        assert(state.precision >= 0);
+        precision = state.precision;
+
+        // precision of 0 means that the number 0 should not be emitted
+        if (!precision && n == 1 && buffer[n] == '0')
+            return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+    }
+
+    int pad = 0;
+    if (state.width != State::None) {
+        assert(state.width >= 0);
+        pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
+    }
+    char padchar = ' ';
+    if ((state.flags & State::Flags::ZeroPad) && !left && !precision)
+        padchar = '0';
+
+    if (precision)
+        pad = std::max(0, pad - precision);
+
+    if (extra && padchar == '0') {
+        writer.put(extra);
+    }
+
+    if (pad && !left) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(padchar);
+    }
+
+    if (extra && padchar == ' ') {
+        writer.put(extra);
+    }
+
+    if (precision) {
+        for (int i = 0; i < precision; ++i)
+            writer.put('0');
+    }
+
+    writer.put(buffer, n);
+
+    if (pad && left) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(padchar);
+    }
+
+    // do stuff
+    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_8(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument is not integral", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_pointer<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_ptr(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
+{
+    // adapted from http://ideone.com/nrQfA8
+
+    uintptr_t number = reinterpret_cast<uintptr_t>(arg);
+    typedef std::numeric_limits<uintptr_t> Info;
+
+    const int digits = Info::digits10;
+    const int bufsize = digits + 2;
+
+    char buffer[bufsize];
+    char* bufptr = buffer;
+    char extra = alphabet[16];
+
+    if (number == 0) {
+        *bufptr++ = '(';
+        *bufptr++ = 'n';
+        *bufptr++ = 'i';
+        *bufptr++ = 'l';
+        *bufptr++ = ')';
+        extra = 0;
+    } else {
+        char* p_first = bufptr;
+        while (number != 0)
+        {
+            *bufptr++ = alphabet[number & 0xf];
+            number >>= 4;
+        }
+        std::reverse(p_first, bufptr);
+    }
+
+    const size_t n = bufptr - buffer;
+    const bool left = state.flags & State::Flags::LeftJustify;
+
+    int pad = 0;
+    if (state.width != State::None) {
+        assert(state.width >= 0);
+        pad = std::max<int>(0, state.width - (n + (extra ? 2 : 0)));
+    }
+    char padchar = ' ';
+    if ((state.flags & State::Flags::ZeroPad) && !left)
+        padchar = '0';
+
+    if (extra && padchar == '0') {
+        writer.put('0');
+        writer.put(extra);
+    }
+
+    if (pad && !left) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(padchar);
+    }
+
+    if (extra && padchar == ' ') {
+        writer.put('0');
+        writer.put(extra);
+    }
+
+    writer.put(buffer, n);
+
+    if (pad && left) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(padchar);
+    }
+
+    // do stuff
+    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_pointer<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_ptr(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument is not pointer", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<int*, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_store(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    *arg = static_cast<int>(writer.offset());
+    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_same<int*, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_store(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument is not an int pointer", state, format, formatoff);
+}
+
 template<typename, typename = void>
 struct has_global_to_string : std::false_type
 {
@@ -281,6 +558,37 @@ template<typename Writer, typename Arg, typename ...Args, typename std::enable_i
 int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
     return print_error("not a stringish", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<Arg>::value, void>::type* = nullptr>
+int print_execute_ch(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    typedef typename std::make_unsigned<typename std::decay<Arg>::type>::type UnsignedArgType;
+
+    const UnsignedArgType ch = static_cast<UnsignedArgType>(arg) % 256;
+
+    int pad = 0;
+    if (state.width != State::None) {
+        assert(state.width >= 0);
+        pad = std::max<int>(0, state.width - 1);
+    }
+
+    if (pad && !(state.flags & State::Flags::LeftJustify)) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(' ');
+    }
+    writer.put(static_cast<char>(ch));
+    if (pad && (state.flags & State::Flags::LeftJustify)) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(' ');
+    }
+    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<Arg>::value, void>::type* = nullptr>
+int print_execute_ch(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("not a char", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
@@ -431,15 +739,14 @@ int print_execute(State& state, Writer& writer, const char* format, size_t forma
     switch (format[formatoff]) {
     case 'd':
     case 'i':
-        return print_execute_int_10(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'u':
-        break;
+        return print_execute_int_10(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'o':
-        break;
+        return print_execute_int_8(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'x':
-        break;
+        return print_execute_int_16(state, writer, format, formatoff + 1, "0123456789abcdefx", std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'X':
-        break;
+        return print_execute_int_16(state, writer, format, formatoff + 1, "0123456789ABCDEFX", std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'f':
     case 'F':
         return print_execute_float(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
@@ -447,22 +754,20 @@ int print_execute(State& state, Writer& writer, const char* format, size_t forma
     case 'E':
     case 'a':
     case 'A':
-        break;
+        return print_error("not implemented", state, format, formatoff);
     case 'g':
     case 'G':
         return print_execute_float_shortest(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
-        break;
     case 'c':
-        break;
+        return print_execute_ch(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 's':
         return print_execute_str(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'p':
-        break;
+        return print_execute_ptr(state, writer, format, formatoff + 1, "0123456789abcdefx", std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'n':
-        break;
+        return print_execute_store(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     default:
-        return print_error("specifier", state, format, formatoff);
-        break;
+        return print_error("invalid specifier", state, format, formatoff);
     }
     return print_helper(state, writer, format, formatoff + 1, std::forward<Args>(args)...);
 }
