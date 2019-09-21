@@ -128,7 +128,7 @@ template<typename Writer, typename ...Args>
 int print_helper(State& state, Writer& writer, const char* format, size_t formatoff, Args&& ...args);
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_int_10(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+int print_execute_int_10_helper(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
     // adapted from http://ideone.com/nrQfA8
 
@@ -219,7 +219,17 @@ int print_execute_int_10(State& state, Writer& writer, const char* format, size_
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+template<bool Signed, typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_10(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    if constexpr (Signed) {
+        return print_execute_int_10_helper(state, writer, format, formatoff, static_cast<typename std::make_signed<typename std::decay<Arg>::type>::type>(arg), std::forward<Args>(args)...);
+    } else {
+        return print_execute_int_10_helper(state, writer, format, formatoff, static_cast<typename std::make_unsigned<typename std::decay<Arg>::type>::type>(arg), std::forward<Args>(args)...);
+    }
+}
+
+template<bool Signed, typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_int_10(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
     return print_error("Argument 10 is not integral", state, format, formatoff);
@@ -866,8 +876,9 @@ int print_execute(State& state, Writer& writer, const char* format, size_t forma
     switch (format[formatoff]) {
     case 'd':
     case 'i':
+        return print_execute_int_10<true>(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'u':
-        return print_execute_int_10(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
+        return print_execute_int_10<false>(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'o':
         return print_execute_int_8(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'x':
