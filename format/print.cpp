@@ -1,5 +1,5 @@
 #include <string>
-#include <vector>
+#include <array>
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
@@ -82,6 +82,28 @@ inline void clearState(State& state)
     state.specifier = State::Specifier::None;
 };
 
+template<char Pad, typename Writer>
+void writePad(Writer& writer, int num)
+{
+    enum { Size = 64 };
+
+    static std::array<char, Size> a;
+    static bool first = true;
+    if (first) {
+        // seems silly that fill is not constexpr in c++ < 20
+        a.fill(Pad);
+        first = false;
+    }
+
+    while (num > Size) {
+        writer.put(a.data(), Size);
+        num -= Size;
+    }
+    if (num > 0) {
+        writer.put(a.data(), num);
+    }
+}
+
 template<size_t N>
 inline int print_error(const char (&type)[N], State& state, const char* format, size_t formatoff)
 {
@@ -159,23 +181,26 @@ int print_execute_int_10(State& state, Writer& writer, const char* format, size_
         writer.put(extra);
 
     if (pad && !left) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(padchar);
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
     }
 
     if (extra && padchar == ' ')
         writer.put(extra);
 
     if (precision) {
-        for (int i = 0; i < precision; ++i)
-            writer.put('0');
+        writePad<'0'>(writer, precision);
     }
 
     writer.put(buffer, n);
 
     if (pad && left) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(padchar);
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
     }
 
     // do stuff
@@ -250,8 +275,10 @@ int print_execute_int_16(State& state, Writer& writer, const char* format, size_
     }
 
     if (pad && !left) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(padchar);
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
     }
 
     if (extra && padchar == ' ') {
@@ -260,15 +287,16 @@ int print_execute_int_16(State& state, Writer& writer, const char* format, size_
     }
 
     if (precision) {
-        for (int i = 0; i < precision; ++i)
-            writer.put('0');
+        writePad<'0'>(writer, precision);
     }
 
     writer.put(buffer, n);
 
     if (pad && left) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(padchar);
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
     }
 
     // do stuff
@@ -342,8 +370,10 @@ int print_execute_int_8(State& state, Writer& writer, const char* format, size_t
     }
 
     if (pad && !left) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(padchar);
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
     }
 
     if (extra && padchar == ' ') {
@@ -351,15 +381,16 @@ int print_execute_int_8(State& state, Writer& writer, const char* format, size_t
     }
 
     if (precision) {
-        for (int i = 0; i < precision; ++i)
-            writer.put('0');
+        writePad<'0'>(writer, precision);
     }
 
     writer.put(buffer, n);
 
     if (pad && left) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(padchar);
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
     }
 
     // do stuff
@@ -420,8 +451,10 @@ int print_execute_ptr(State& state, Writer& writer, const char* format, size_t f
     }
 
     if (pad && !left) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(padchar);
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
     }
 
     if (extra && padchar == ' ') {
@@ -432,8 +465,10 @@ int print_execute_ptr(State& state, Writer& writer, const char* format, size_t f
     writer.put(buffer, n);
 
     if (pad && left) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(padchar);
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
     }
 
     // do stuff
@@ -524,14 +559,15 @@ int print_execute_str(State& state, Writer& writer, const char* format, size_t f
     }
 
     if (pad && !(state.flags & State::Flags::LeftJustify)) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(' ');
+        writePad<' '>(writer, pad);
     }
+
     writer.put(arg, sz);
+
     if (pad && (state.flags & State::Flags::LeftJustify)) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(' ');
+        writePad<' '>(writer, pad);
     }
+
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
@@ -568,14 +604,15 @@ int print_execute_ch(State& state, Writer& writer, const char* format, size_t fo
     }
 
     if (pad && !(state.flags & State::Flags::LeftJustify)) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(' ');
+        writePad<' '>(writer, pad);
     }
+
     writer.put(static_cast<char>(ch));
+
     if (pad && (state.flags & State::Flags::LeftJustify)) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(' ');
+        writePad<' '>(writer, pad);
     }
+
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
@@ -655,15 +692,19 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
             padchar = '0';
 
         if (pad && !left) {
-            for (int i = 0; i < pad; ++i)
-                writer.put(padchar);
+            if (padchar == '0')
+                writePad<'0'>(writer, pad);
+            else
+                writePad<' '>(writer, pad);
         }
 
         writer.put(buffer, i);
 
         if (pad && left) {
-            for (int i = 0; i < pad; ++i)
-                writer.put(padchar);
+            if (padchar == '0')
+                writePad<'0'>(writer, pad);
+            else
+                writePad<' '>(writer, pad);
         }
 
         return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
@@ -701,15 +742,19 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
         padchar = '0';
 
     if (pad && !left) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(padchar);
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
     }
 
     writer.put(buffer, n);
 
     if (pad && left) {
-        for (int i = 0; i < pad; ++i)
-            writer.put(padchar);
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
     }
 
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
