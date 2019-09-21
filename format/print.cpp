@@ -14,12 +14,12 @@ struct State
     enum { None = -2 };
     enum class Flags
     {
-        None,
-        LeftJustify,
-        Sign,
-        Space,
-        Prefix,
-        ZeroPad
+        None        = 0x00,
+        LeftJustify = 0x02,
+        Sign        = 0x04,
+        Space       = 0x08,
+        Prefix      = 0x10,
+        ZeroPad     = 0x20
     };
     enum class Length
     {
@@ -44,9 +44,6 @@ struct BufferWriter
 
     void put(char c) { buffer[bufferoff++] = c; }
     void put(const char* c, size_t s) { const size_t m = std::min(s, buffersize - bufferoff); memcpy(buffer + bufferoff, c, m); bufferoff += m; }
-    void put(const char* c) { const size_t m = std::min(strlen(c), buffersize - bufferoff); memcpy(buffer + bufferoff, c, m); bufferoff += m; }
-    template<size_t N>
-    void put(const char (&c)[N]) { const size_t m = std::min(N, buffersize - bufferoff); memcpy(buffer + bufferoff, c, m); bufferoff += m; }
 
     size_t offset() const { return bufferoff; }
     size_t size() const { return buffersize; }
@@ -60,9 +57,6 @@ struct FileWriter
 
     void put(char c) { fputc(c, file); ++bufferoff; }
     void put(const char* c, size_t s) { fwrite(c, 1, s, file); bufferoff += s; }
-    void put(const char* c) { const size_t s = strlen(c); fwrite(c, 1, s, file); bufferoff += s; }
-    template<size_t N>
-    void put(const char (&c)[N]) { fwrite(c, 1, N, file); bufferoff += N; }
 
     size_t offset() const { return bufferoff; }
     size_t size() const { return std::numeric_limits<size_t>::max(); }
@@ -100,13 +94,98 @@ inline int print_error(const char (&type)[N], State& state, const char* format, 
 template<typename Writer, typename ...Args>
 int print_helper(State& state, Writer& writer, const char* format, size_t formatoff, Args&& ...args);
 
-template<typename Writer, typename Arg, typename ...Args>
-int print_execute_int(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_10(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    if (!std::is_integral<Arg>::value)
-        return print_error("not an int", state, format, formatoff);
+    // adapted from http://ideone.com/nrQfA8
+
+    typedef typename std::decay<Arg>::type ArgType;
+    typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
+    typedef std::numeric_limits<ArgType> Info;
+
+    const ArgType number = arg;
+    UnsignedArgType unumber = number < 0 ? -number : number;
+
+    const int digits = Info::digits10;
+    const int bufsize = digits + 2;
+
+    char buffer[bufsize];
+    char* bufptr = buffer;
+    char extra = 0;
+
+    if (number == 0) {
+        *bufptr++ = '0';
+    } else {
+        if (number < 0) {
+            extra = '-';
+        } else if (state.flags & State::Flags::Sign) {
+            extra = '+';
+        }
+        char* p_first = bufptr;
+        while (unumber != 0)
+        {
+            *bufptr++ = '0' + unumber % 10;
+            unumber /= 10;
+        }
+        std::reverse(p_first, bufptr);
+    }
+
+    const size_t n = bufptr - buffer;
+    const bool left = state.flags & State::Flags::LeftJustify;
+
+    int precision = 0;
+    if (state.precision != State::None) {
+        assert(state.precision >= 0);
+        precision = state.precision;
+
+        // precision of 0 means that the number 0 should not be emitted
+        if (!precision && n == 1 && buffer[n] == '0')
+            return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+    }
+
+    int pad = 0;
+    if (state.width != State::None) {
+        assert(state.width >= 0);
+        pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
+    }
+    char padchar = ' ';
+    if ((state.flags & State::Flags::ZeroPad) && !left && !precision)
+        padchar = '0';
+
+    if (precision)
+        pad = std::max(0, pad - precision);
+
+    if (extra && padchar == '0')
+        writer.put(extra);
+
+    if (pad && !left) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(padchar);
+    }
+
+    if (extra && padchar == ' ')
+        writer.put(extra);
+
+    if (precision) {
+        for (int i = 0; i < precision; ++i)
+            writer.put('0');
+    }
+
+    writer.put(buffer, n);
+
+    if (pad && left) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(padchar);
+    }
+
     // do stuff
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_10(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument is not integral", state, format, formatoff);
 }
 
 template<typename, typename = void>
@@ -262,7 +341,29 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
     }
 
     if (dot || buffer[i] == '.') {
+        const bool left = state.flags & State::Flags::LeftJustify;
+
+        int pad = 0;
+        if (state.width != State::None) {
+            assert(state.width >= 0);
+            pad = std::max<int>(0, state.width - i);
+        }
+        char padchar = ' ';
+        if ((state.flags & State::Flags::ZeroPad) && !left)
+            padchar = '0';
+
+        if (pad && !left) {
+            for (int i = 0; i < pad; ++i)
+                writer.put(padchar);
+        }
+
         writer.put(buffer, i);
+
+        if (pad && left) {
+            for (int i = 0; i < pad; ++i)
+                writer.put(padchar);
+        }
+
         return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
     }
 
@@ -286,7 +387,29 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
         }
     }
 
+    const bool left = state.flags & State::Flags::LeftJustify;
+
+    int pad = 0;
+    if (state.width != State::None) {
+        assert(state.width >= 0);
+        pad = std::max<int>(0, state.width - n);
+    }
+    char padchar = ' ';
+    if ((state.flags & State::Flags::ZeroPad) && !left)
+        padchar = '0';
+
+    if (pad && !left) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(padchar);
+    }
+
     writer.put(buffer, n);
+
+    if (pad && left) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(padchar);
+    }
+
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
@@ -308,7 +431,7 @@ int print_execute(State& state, Writer& writer, const char* format, size_t forma
     switch (format[formatoff]) {
     case 'd':
     case 'i':
-        return print_execute_int(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
+        return print_execute_int_10(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'u':
         break;
     case 'o':
@@ -569,7 +692,9 @@ int main(int, char**)
 
     auto t1 = steady_clock::now();
     for (int i = 0; i < Iter; ++i) {
-        snprint(buffer, sizeof(buffer), "hello2 %f\n", 12234.15281);
+        //snprint(buffer, sizeof(buffer), "hello2 %f\n", 12234.15281);
+        //snprint(buffer, sizeof(buffer), "hello2 %20s\n", "hipphipp");
+        snprint(buffer, sizeof(buffer), "hello2 %d\n", 1234567);
     }
 
     auto t2 = steady_clock::now();
@@ -577,7 +702,9 @@ int main(int, char**)
 
     auto t3 = steady_clock::now();
     for (int i = 0; i < Iter; ++i) {
-        snprintf(buffer, sizeof(buffer), "hello1 %f\n", 12234.15281);
+        //snprintf(buffer, sizeof(buffer), "hello1 %f\n", 12234.15281);
+        //snprintf(buffer, sizeof(buffer), "hello1 %20s\n", "hipphipp");
+        snprintf(buffer, sizeof(buffer), "hello1 %d\n", 1234567);
     }
 
     auto t4 = steady_clock::now();
