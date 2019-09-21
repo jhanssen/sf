@@ -411,7 +411,7 @@ int print_execute_ptr(State& state, Writer& writer, const char* format, size_t f
         pad = std::max<int>(0, state.width - (n + (extra ? 2 : 0)));
     }
     char padchar = ' ';
-    if ((state.flags & State::Flags::ZeroPad) && !left)
+    if ((state.flags & State::Flags::ZeroPad) && !left && extra)
         padchar = '0';
 
     if (extra && padchar == '0') {
@@ -869,12 +869,11 @@ int print_get_precision(State& state, Writer& writer, const char* format, size_t
         return print_get_length(state, writer, format, formatoff, std::forward<Args>(args)...);
     ++formatoff;
     state.precision = 0;
-    int mul = 1;
+    const int mul = 10;
     for (;; ++formatoff) {
         if (format[formatoff] >= '0' && format[formatoff] <= '9') {
             state.precision *= mul;
             state.precision += format[formatoff] - '0';
-            mul *= 10;
         } else if (format[formatoff] == '*') {
             state.precision = -1;
             return print_get_length(state, writer, format, formatoff + 1, std::forward<Args>(args)...);
@@ -890,12 +889,11 @@ template<typename Writer, typename ...Args>
 int print_get_width(State& state, Writer& writer, const char* format, size_t formatoff, Args&& ...args)
 {
     state.width = 0;
-    int mul = 1;
+    const int mul = 10;
     for (;; ++formatoff) {
         if (format[formatoff] >= '0' && format[formatoff] <= '9') {
             state.width *= mul;
             state.width += format[formatoff] - '0';
-            mul *= 10;
         } else if (format[formatoff] == '*') {
             state.width = -1;
             return print_get_precision(state, writer, format, formatoff + 1, std::forward<Args>(args)...);
@@ -1007,22 +1005,24 @@ int main(int, char**)
     for (int i = 0; i < Iter; ++i) {
         //snprintf(buffer, sizeof(buffer), "hello1 %f\n", 12234.15281);
         //snprintf(buffer, sizeof(buffer), "hello1 %20s\n", "hipphipp");
-        snprintf(buffer2, sizeof(buffer2), "hello2 %#x%s%u%n%140p%n%s\n%n", 1234567, "jappja", 12345, &n1, &n1, &n2, "trall og trall", &fn2);
+        snprintf(buffer2, sizeof(buffer2), "hello2 %#x%s%140u%n%p%n%s\n%n", 1234567, "jappja", 12345, &n1, &n1, &n2, "trall og trall", &fn2);
     }
 
     auto t4 = steady_clock::now();
     double delta2 = duration_cast<nanoseconds>(t4 - t3).count() / static_cast<double>(Iter);
 
     // verify
-    assert(fn1 == fn2);
-    assert(fn1 > 0);
     bool ok = true;
-    int off;
-    for (off = 0; off < fn1; ++off) {
-        if (buffer1[off] != buffer2[off]) {
-            ok = false;
-            break;
+    int off = 0;
+    if (fn1 == fn2 && fn1 > 0) {
+        for (off = 0; off < fn1; ++off) {
+            if (buffer1[off] != buffer2[off]) {
+                ok = false;
+                break;
+            }
         }
+    } else {
+        ok = false;
     }
 
     if (ok) {
