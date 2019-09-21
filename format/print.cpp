@@ -153,6 +153,8 @@ int print_execute_int_10(State& state, Writer& writer, const char* format, size_
             extra = '-';
         } else if (state.flags & State::Flags::Sign) {
             extra = '+';
+        } else if (state.flags & State::Flags::Space) {
+            extra = ' ';
         }
         char* p_first = bufptr;
         while (unumber != 0)
@@ -242,6 +244,8 @@ int print_execute_int_16(State& state, Writer& writer, const char* format, size_
 
     if (state.flags & State::Flags::Prefix)
         extra = alphabet[16];
+     else if (state.flags & State::Flags::Space)
+        extra = ' ';
 
     if (number == 0) {
         *bufptr++ = '0';
@@ -338,6 +342,8 @@ int print_execute_int_8(State& state, Writer& writer, const char* format, size_t
 
     if (state.flags & State::Flags::Prefix)
         extra = '0';
+    else if (state.flags & State::Flags::Space)
+        extra = ' ';
 
     if (number == 0) {
         *bufptr++ = '0';
@@ -637,8 +643,53 @@ int print_execute_ch(State& state, Writer& writer, const char* format, size_t fo
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
 int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
+    Arg number = arg;
+
+    char extra = 0;
+    if (arg >= 0) {
+        if (state.flags & State::Flags::Sign)
+            extra = '+';
+        else if (state.flags & State::Flags::Space)
+            extra = ' ';
+    } else {
+        extra = '-';
+        number = -number;
+    }
+
     char buffer[2048];
-    const int n = d2fixed_buffered_n(arg, state.precision == State::None ? 6 : state.precision, buffer);
+    const int n = d2fixed_buffered_n(number, state.precision == State::None ? 6 : state.precision, buffer);
+
+    const bool left = state.flags & State::Flags::LeftJustify;
+
+    int pad = 0;
+    if (state.width != State::None) {
+        assert(state.width >= 0);
+        pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
+    }
+    char padchar = ' ';
+    if ((state.flags & State::Flags::ZeroPad) && !left)
+        padchar = '0';
+
+    if (extra && padchar == '0')
+        writer.put(extra);
+
+    if (pad && !left) {
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
+    }
+
+    if (extra && padchar == ' ')
+        writer.put(extra);
+
+    if (pad && left) {
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
+    }
+
     writer.put(buffer, n);
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
@@ -658,9 +709,22 @@ int print_execute_float(State& state, Writer& writer, const char* format, size_t
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
 int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
+    Arg number = arg;
+
+    char extra = 0;
+    if (arg >= 0) {
+        if (state.flags & State::Flags::Sign)
+            extra = '+';
+        else if (state.flags & State::Flags::Space)
+            extra = ' ';
+    } else {
+        extra = '-';
+        number = -number;
+    }
+
     char buffer[2048];
     const int pr = state.precision == State::None ? 6 : state.precision;
-    int n = d2fixed_buffered_n(arg, pr, buffer);
+    int n = d2fixed_buffered_n(number, pr, buffer);
 
     int sig = 0, i = 0;
     bool done = false, dot = false;
@@ -697,11 +761,14 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
         int pad = 0;
         if (state.width != State::None) {
             assert(state.width >= 0);
-            pad = std::max<int>(0, state.width - i);
+            pad = std::max<int>(0, state.width - (i + (extra ? 1 : 0)));
         }
         char padchar = ' ';
         if ((state.flags & State::Flags::ZeroPad) && !left)
             padchar = '0';
+
+        if (extra && padchar == '0')
+            writer.put(extra);
 
         if (pad && !left) {
             if (padchar == '0')
@@ -709,6 +776,9 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
             else
                 writePad<' '>(writer, pad);
         }
+
+        if (extra && padchar == ' ')
+            writer.put(extra);
 
         writer.put(buffer, i);
 
@@ -722,7 +792,7 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
         return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
     }
 
-    n = d2exp_buffered_n(arg, std::max(pr - 1, 0), buffer);
+    n = d2exp_buffered_n(number, std::max(pr - 1, 0), buffer);
     const int orig = n;
     done = false;
     while (!done && n > 0) {
@@ -747,11 +817,14 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
     int pad = 0;
     if (state.width != State::None) {
         assert(state.width >= 0);
-        pad = std::max<int>(0, state.width - n);
+        pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
     }
     char padchar = ' ';
     if ((state.flags & State::Flags::ZeroPad) && !left)
         padchar = '0';
+
+    if (extra && padchar == '0')
+        writer.put(extra);
 
     if (pad && !left) {
         if (padchar == '0')
@@ -759,6 +832,9 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
         else
             writePad<' '>(writer, pad);
     }
+
+    if (extra && padchar == ' ')
+        writer.put(extra);
 
     writer.put(buffer, n);
 
