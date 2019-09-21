@@ -582,7 +582,7 @@ int print_execute_str(State& state, Writer& writer, const char* format, size_t f
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<typename std::decay<Arg>::type, std::string>::value, void>::type* = nullptr>
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<std::string, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
     writer.put(arg.c_str(), arg.size());
