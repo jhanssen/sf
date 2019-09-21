@@ -136,8 +136,7 @@ int print_execute_int_10(State& state, Writer& writer, const char* format, size_
     typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
     typedef std::numeric_limits<ArgType> Info;
 
-    const ArgType number = arg;
-    UnsignedArgType unumber = number < 0 ? -number : number;
+    UnsignedArgType unumber = arg < 0 ? -arg : arg;
 
     const int digits = Info::digits10;
     const int bufsize = digits + 2;
@@ -146,10 +145,10 @@ int print_execute_int_10(State& state, Writer& writer, const char* format, size_
     char* bufptr = buffer;
     char extra = 0;
 
-    if (number == 0) {
+    if (arg == 0) {
         *bufptr++ = '0';
     } else {
-        if (number < 0) {
+        if (arg < 0) {
             extra = '-';
         } else if (state.flags & State::Flags::Sign) {
             extra = '+';
