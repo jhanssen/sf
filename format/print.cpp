@@ -909,7 +909,7 @@ int print_execute(State& state, Writer& writer, const char* format, size_t forma
 template<typename Writer>
 int print_execute(State& state, Writer& writer, const char* format, size_t formatoff)
 {
-    return writer.offset();
+    return print_error("Not enough arguments", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<int, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
