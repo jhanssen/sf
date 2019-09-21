@@ -637,7 +637,7 @@ template<typename Writer, typename Arg, typename ...Args, typename std::enable_i
 int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
     char buffer[2048];
-    const int n = d2fixed_buffered_n(arg, state.precision == -2 ? 6 : state.precision, buffer);
+    const int n = d2fixed_buffered_n(arg, state.precision == State::None ? 6 : state.precision, buffer);
     writer.put(buffer, n);
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
@@ -658,7 +658,7 @@ template<typename Writer, typename Arg, typename ...Args, typename std::enable_i
 int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
     char buffer[2048];
-    const int pr = state.precision == -2 ? 6 : state.precision;
+    const int pr = state.precision == State::None ? 6 : state.precision;
     int n = d2fixed_buffered_n(arg, pr, buffer);
 
     int sig = 0, i = 0;
