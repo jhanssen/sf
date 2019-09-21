@@ -11,6 +11,7 @@ using namespace std::chrono;
 
 struct State
 {
+    enum { None = -2 };
     enum class Flags
     {
         None,
@@ -70,15 +71,20 @@ struct FileWriter
 
 State::Flags& operator|=(State::Flags& l, State::Flags r)
 {
-    (*reinterpret_cast<std::underlying_type<State::Flags>::type*>(&l)) |= static_cast<uint32_t>(r);
+    (*reinterpret_cast<std::underlying_type<State::Flags>::type*>(&l)) |= static_cast<std::underlying_type<State::Flags>::type>(r);
     return l;
+}
+
+bool operator&(State::Flags l, State::Flags r)
+{
+    return (static_cast<std::underlying_type<State::Flags>::type>(l) & static_cast<std::underlying_type<State::Flags>::type>(r)) != 0;
 }
 
 inline void clearState(State& state)
 {
     state.flags = State::Flags::None;
     state.length = State::Length::None;
-    state.width = state.precision = -2;
+    state.width = state.precision = State::None;
     state.specifier = State::Specifier::None;
 };
 
@@ -130,6 +136,17 @@ struct is_stringish : std::integral_constant<
 {
 };
 
+template<size_t N>
+constexpr size_t stringLength(const char (&)[N])
+{
+    return N;
+}
+
+static inline size_t stringLength(const char* str)
+{
+    return strlen(str);
+}
+
 template<class T>
 struct is_float_double : std::integral_constant<
     bool,
@@ -145,7 +162,26 @@ template<typename T> struct dependent_false : std::false_type
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_c_string<Arg>::value, void>::type* = nullptr>
 int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    writer.put(arg);
+    size_t sz = stringLength(arg);
+    if (state.precision != State::None && state.precision < sz) {
+        assert(state.precision >= 0);
+        sz = state.precision;
+    }
+    int pad = 0;
+    if (state.width != State::None) {
+        assert(state.width >= 0);
+        pad = std::max<int>(0, state.width - sz);
+    }
+
+    if (pad && !(state.flags & State::Flags::LeftJustify)) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(' ');
+    }
+    writer.put(arg, sz);
+    if (pad && (state.flags & State::Flags::LeftJustify)) {
+        for (int i = 0; i < pad; ++i)
+            writer.put(' ');
+    }
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
@@ -522,7 +558,7 @@ int print(const char* format, Args&& ...args)
 int main(int, char**)
 {
     // char buf[1024];
-    // const int i = snprint(buf, sizeof(buf), "hello %s\n", "ting");
+    // print("hello '%8.*s'\n", 2, "ting");
     // printf("%d -> '%s'\n", i, buf);
     //const int i = snprint(buf, sizeof(buf), "hello %s\n", "hello");
 
