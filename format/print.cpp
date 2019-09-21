@@ -191,8 +191,6 @@ int print_execute_int_10(State& state, Writer& writer, const char* format, size_
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_int_16(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
 {
-    // adapted from http://ideone.com/nrQfA8
-
     typedef typename std::decay<Arg>::type ArgType;
     typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
     typedef std::numeric_limits<ArgType> Info;
@@ -286,8 +284,6 @@ int print_execute_int_16(State& state, Writer& writer, const char* format, size_
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_int_8(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    // adapted from http://ideone.com/nrQfA8
-
     typedef typename std::decay<Arg>::type ArgType;
     typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
     typedef std::numeric_limits<ArgType> Info;
@@ -379,8 +375,6 @@ int print_execute_int_8(State& state, Writer& writer, const char* format, size_t
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_pointer<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_ptr(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
 {
-    // adapted from http://ideone.com/nrQfA8
-
     uintptr_t number = reinterpret_cast<uintptr_t>(arg);
     typedef std::numeric_limits<uintptr_t> Info;
 
