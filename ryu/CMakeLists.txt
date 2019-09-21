@@ -1,3 +1,5 @@
+# this code was lifted from https://github.com/ulfjack/ryu, Boost licensed
+
 cmake_minimum_required(VERSION 3.0)
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")

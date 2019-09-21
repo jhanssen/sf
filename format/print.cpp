@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <ryu/ryu2.h>
 
 struct State
 {
@@ -73,7 +74,7 @@ inline void clearState(State& state)
 {
     state.flags = State::Flags::None;
     state.length = State::Length::None;
-    state.width = state.precision = 0;
+    state.width = state.precision = -2;
     state.specifier = State::Specifier::None;
 };
 
@@ -163,16 +164,102 @@ int print_execute_str(State& state, Writer& writer, const char* format, size_t f
     return print_error("not a stringish", state, format, formatoff);
 }
 
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<float, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
 int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
+    char buffer[2048];
+    const int n = d2fixed_buffered_n(arg, state.precision == -2 ? 6 : state.precision, buffer);
+    writer.put(buffer, n);
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_arithmetic<Arg>::value, void>::type* = nullptr>
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<long double, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    return print_error("not an arithmetic", state, format, formatoff);
+    return print_error("long double not implemented", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_floating_point<Arg>::value, void>::type* = nullptr>
+int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("not a floating point", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
+int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    char buffer[2048];
+    const int pr = state.precision == -2 ? 6 : state.precision;
+    int n = d2fixed_buffered_n(arg, pr, buffer);
+
+    int sig = 0, i = 0;
+    bool done = false, dot = false;
+    done = false;
+    for (; i < n; ++i) {
+        switch (buffer[i]) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            ++sig;
+            if (sig == pr)
+                done = true;
+            break;
+        case '.':
+            dot = true;
+            break;
+        }
+        if (done) {
+            ++i;
+            break;
+        }
+    }
+
+    if (dot || buffer[i] == '.') {
+        writer.put(buffer, i);
+        return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+    }
+
+    n = d2exp_buffered_n(arg, std::max(pr - 1, 0), buffer);
+    const int orig = n;
+    done = false;
+    while (!done && n > 0) {
+        switch(buffer[n - 1]) {
+        case '0':
+        case '+':
+            --n;
+            break;
+        case 'e':
+            --n;
+            done = true;
+            break;
+        default:
+            n = orig;
+            done = true;
+            break;
+        }
+    }
+
+    writer.put(buffer, n);
+    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<long double, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("long double not implemented", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_floating_point<Arg>::value, void>::type* = nullptr>
+int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("not a floating point", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args>
@@ -191,17 +278,16 @@ int print_execute(State& state, Writer& writer, const char* format, size_t forma
     case 'X':
         break;
     case 'f':
-        return print_execute_float(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'F':
-        break;
+        return print_execute_float(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'e':
     case 'E':
     case 'a':
     case 'A':
         break;
     case 'g':
-        break;
     case 'G':
+        return print_execute_float_shortest(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
         break;
     case 'c':
         break;
@@ -222,6 +308,47 @@ template<typename Writer>
 int print_execute(State& state, Writer& writer, const char* format, size_t formatoff)
 {
     return writer.offset();
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<int, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_get_precision_argument(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    state.precision = arg;
+    return print_execute(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_same<int, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_get_precision_argument(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("invalid precision argument", state, format, formatoff);
+}
+
+template<typename Writer>
+int print_get_precision_argument(State& state, Writer& writer, const char* format, size_t formatoff)
+{
+    return print_error("no precision argument", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<int, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_get_width_argument(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    state.width = arg;
+    if (state.precision == -1) {
+        return print_get_precision_argument(state, writer, format, formatoff, std::forward<Args>(args)...);
+    }
+    return print_execute(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_same<int, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_get_width_argument(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("invalid width argument", state, format, formatoff);
+}
+
+template<typename Writer>
+int print_get_width_argument(State& state, Writer& writer, const char* format, size_t formatoff)
+{
+    return print_error("no width argument", state, format, formatoff);
 }
 
 template<typename Writer, typename ...Args>
@@ -263,7 +390,14 @@ int print_get_length(State& state, Writer& writer, const char* format, size_t fo
         ++formatoff;
         break;
     }
-    return print_execute(state, writer, format, formatoff, std::forward<Args>(args)...);
+
+    if (state.width == -1) {
+        return print_get_width_argument(state, writer, format, formatoff, std::forward<Args>(args)...);
+    } else if (state.precision == -1) {
+        return print_get_precision_argument(state, writer, format, formatoff, std::forward<Args>(args)...);
+    } else {
+        return print_execute(state, writer, format, formatoff, std::forward<Args>(args)...);
+    }
 }
 
 template<typename Writer, typename ...Args>
@@ -272,6 +406,7 @@ int print_get_precision(State& state, Writer& writer, const char* format, size_t
     if (format[formatoff] != '.')
         return print_get_length(state, writer, format, formatoff, std::forward<Args>(args)...);
     ++formatoff;
+    state.precision = 0;
     int mul = 1;
     for (;; ++formatoff) {
         if (format[formatoff] >= '0' && format[formatoff] <= '9') {
@@ -292,6 +427,7 @@ int print_get_precision(State& state, Writer& writer, const char* format, size_t
 template<typename Writer, typename ...Args>
 int print_get_width(State& state, Writer& writer, const char* format, size_t formatoff, Args&& ...args)
 {
+    state.width = 0;
     int mul = 1;
     for (;; ++formatoff) {
         if (format[formatoff] >= '0' && format[formatoff] <= '9') {
@@ -387,8 +523,8 @@ int main(int, char**)
     //const int i = snprint(buf, sizeof(buf), "hello %s\n", "hello");
 
     std::string tang = "tang";
-    const int i = print("hello %s%s %f\n", "ting", tang, std::numeric_limits<float>::max());
+    const int i = print("hello %s%s %g\n", "ting", tang, 12234.15281);
     // printf("%f\n", std::numeric_limits<double>::max());
-    printf("%f\n", std::numeric_limits<float>::max());
+    printf("%g\n", 12234.15281);
     return i;
 }
