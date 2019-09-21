@@ -1051,7 +1051,7 @@ int main(int, char**)
     for (int i = 0; i < Iter; ++i) {
         //snprint(buffer, sizeof(buffer), "hello2 %f\n", 12234.15281);
         //snprint(buffer, sizeof(buffer), "hello2 %20s\n", "hipphipp");
-        snprint(buffer1, sizeof(buffer1), "hello2 %#x%s%u%n%140p%n%s\n%n", 1234567, "jappja", 12345, &n1, &n1, &n2, "trall og trall", &fn1);
+        snprint(buffer1, sizeof(buffer1), "hello2 %#x%s%140u%n%p%n%s\n%n", 1234567, "jappja", 12345, &n1, &n1, &n2, "trall og trall", &fn1);
     }
 
     auto t2 = steady_clock::now();
