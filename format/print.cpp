@@ -42,12 +42,12 @@ struct BufferWriter
     size_t buffersize { 0 };
     size_t bufferoff { 0 };
 
-    void put(char c) { if (bufferoff < buffersize) buffer[bufferoff++] = c; }
-    void put(const char* c, size_t s) { const size_t m = std::min(s, buffersize - bufferoff); if (m) { memcpy(buffer + bufferoff, c, m); bufferoff += m; } }
+    void put(char c) { if (bufferoff < buffersize) buffer[bufferoff++] = c; else ++bufferoff; }
+    void put(const char* c, size_t s) { const ssize_t m = std::min<ssize_t>(s, buffersize - bufferoff); if (m > 0) { memcpy(buffer + bufferoff, c, m); } bufferoff += s; }
 
     size_t offset() const { return bufferoff; }
     size_t size() const { return buffersize; }
-    size_t terminate() { if (bufferoff < buffersize) buffer[bufferoff] = '\0'; return bufferoff; }
+    size_t terminate() { if (bufferoff < buffersize) buffer[bufferoff] = '\0'; else buffer[buffersize - 1] = '\0'; return bufferoff; }
 };
 
 struct FileWriter
@@ -993,9 +993,6 @@ template<typename Writer, typename ...Args>
 int print_helper(State& state, Writer& writer, const char* format, size_t formatoff, Args&& ...args)
 {
     for (;;) {
-        assert(writer.offset() <= writer.size());
-        if (writer.offset() == writer.size())
-            return writer.size();
         switch (format[formatoff]) {
         case '%':
             clearState(state);
@@ -1042,8 +1039,7 @@ int main(int, char**)
     char buffer1[1024];
     char buffer2[1024];
 
-    int n1, n2;
-    int fn1, fn2;
+    int fn1, fn2, r1, r2;
 
     enum { Iter = 10000 };
 
@@ -1051,7 +1047,7 @@ int main(int, char**)
     for (int i = 0; i < Iter; ++i) {
         //snprint(buffer, sizeof(buffer), "hello2 %f\n", 12234.15281);
         //snprint(buffer, sizeof(buffer), "hello2 %20s\n", "hipphipp");
-        snprint(buffer1, sizeof(buffer1), "hello2 %#x%s%140u%n%p%n%s%f%-+20d\n%n", 1234567, "jappja", 12345, &n1, &n1, &n2, "trall og trall", 123.456, 99, &fn1);
+        r1 = snprint(buffer1, sizeof(buffer1), "hello2 %#x%s%140u%p%s%f%-+20d\n%n", 1234567, "jappja", 12345, &fn1, "trall og trall", 123.456, 99, &fn1);
     }
 
     auto t2 = steady_clock::now();
@@ -1061,7 +1057,7 @@ int main(int, char**)
     for (int i = 0; i < Iter; ++i) {
         //snprintf(buffer, sizeof(buffer), "hello1 %f\n", 12234.15281);
         //snprintf(buffer, sizeof(buffer), "hello1 %20s\n", "hipphipp");
-        snprintf(buffer2, sizeof(buffer2), "hello2 %#x%s%140u%n%p%n%s%f%-+20d\n%n", 1234567, "jappja", 12345, &n1, &n1, &n2, "trall og trall", 123.456, 99, &fn2);
+        r2 = snprintf(buffer2, sizeof(buffer2), "hello2 %#x%s%140u%p%s%f%-+20d\n%n", 1234567, "jappja", 12345, &fn1, "trall og trall", 123.456, 99, &fn2);
     }
 
     auto t4 = steady_clock::now();
@@ -1087,7 +1083,7 @@ int main(int, char**)
 
         printf("verified %d\n", fn1);
     } else {
-        printf("verify failed at %d\n", off);
+        printf("verify failed at %d (%d,%d) - (%d,%d)\n", off, fn1, fn2, r1, r2);
     }
 
     return 0;
