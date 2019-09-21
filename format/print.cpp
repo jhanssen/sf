@@ -253,8 +253,6 @@ int print_execute_int_16(State& state, Writer& writer, const char* format, size_
 
     if (state.flags & State::Flags::Prefix)
         extra = alphabet[16];
-     else if (state.flags & State::Flags::Space)
-        extra = ' ';
 
     if (number == 0) {
         *bufptr++ = '0';
@@ -351,8 +349,6 @@ int print_execute_int_8(State& state, Writer& writer, const char* format, size_t
 
     if (state.flags & State::Flags::Prefix)
         extra = '0';
-    else if (state.flags & State::Flags::Space)
-        extra = ' ';
 
     if (number == 0) {
         *bufptr++ = '0';
