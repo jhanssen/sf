@@ -1066,7 +1066,7 @@ int main(int, char**)
     // verify
     bool ok = true;
     int off = 0;
-    if (fn1 == fn2 && fn1 > 0) {
+    if (fn1 == fn2 && r1 == r2 && fn1 > 0) {
         for (off = 0; off < fn1; ++off) {
             if (buffer1[off] != buffer2[off]) {
                 ok = false;
