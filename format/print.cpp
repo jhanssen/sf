@@ -82,18 +82,29 @@ inline void clearState(State& state)
     state.specifier = State::Specifier::None;
 };
 
+namespace detail
+{
+
+template <typename T, std::size_t...Is>
+constexpr std::array<T, sizeof...(Is)>
+make_array(const T& value, std::index_sequence<Is...>)
+{
+    return {{(static_cast<void>(Is), value)...}};
+}
+}
+
+template <std::size_t N, typename T>
+constexpr std::array<T, N> make_array(const T& value)
+{
+    return detail::make_array(value, std::make_index_sequence<N>());
+}
+
 template<char Pad, typename Writer>
 void writePad(Writer& writer, int num)
 {
     enum { Size = 64 };
 
-    static std::array<char, Size> a;
-    static bool first = true;
-    if (first) {
-        // seems silly that fill is not constexpr in c++ < 20
-        a.fill(Pad);
-        first = false;
-    }
+    constexpr auto a = make_array<Size>(Pad);
 
     while (num > Size) {
         writer.put(a.data(), Size);
