@@ -42,8 +42,8 @@ struct BufferWriter
     size_t buffersize { 0 };
     size_t bufferoff { 0 };
 
-    void put(char c) { buffer[bufferoff++] = c; }
-    void put(const char* c, size_t s) { const size_t m = std::min(s, buffersize - bufferoff); memcpy(buffer + bufferoff, c, m); bufferoff += m; }
+    void put(char c) { if (bufferoff < buffersize) buffer[bufferoff++] = c; }
+    void put(const char* c, size_t s) { const size_t m = std::min(s, buffersize - bufferoff); if (m) { memcpy(buffer + bufferoff, c, m); bufferoff += m; } }
 
     size_t offset() const { return bufferoff; }
     size_t size() const { return buffersize; }
