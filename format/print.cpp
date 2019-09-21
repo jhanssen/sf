@@ -682,6 +682,8 @@ int print_execute_float(State& state, Writer& writer, const char* format, size_t
     if (extra && padchar == ' ')
         writer.put(extra);
 
+    writer.put(buffer, n);
+
     if (pad && left) {
         if (padchar == '0')
             writePad<'0'>(writer, pad);
@@ -689,7 +691,6 @@ int print_execute_float(State& state, Writer& writer, const char* format, size_t
             writePad<' '>(writer, pad);
     }
 
-    writer.put(buffer, n);
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
