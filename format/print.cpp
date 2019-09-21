@@ -341,6 +341,7 @@ int print_execute_int_8(State& state, Writer& writer, const char* format, size_t
 
     if (number == 0) {
         *bufptr++ = '0';
+        extra = 0;
     } else {
         char* p_first = bufptr;
         while (number != 0)
