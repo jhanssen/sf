@@ -991,7 +991,11 @@ int main(int, char**)
     //const int i = snprint(buf, sizeof(buf), "hello %s\n", "hello");
 
     std::string tang = "tang";
-    char buffer[1024];
+    char buffer1[1024];
+    char buffer2[1024];
+
+    int n1, n2;
+    int fn1, fn2;
 
     enum { Iter = 10000 };
 
@@ -999,7 +1003,7 @@ int main(int, char**)
     for (int i = 0; i < Iter; ++i) {
         //snprint(buffer, sizeof(buffer), "hello2 %f\n", 12234.15281);
         //snprint(buffer, sizeof(buffer), "hello2 %20s\n", "hipphipp");
-        snprint(buffer, sizeof(buffer), "hello2 %d\n", 1234567);
+        snprint(buffer1, sizeof(buffer1), "hello2 %#x%s%u%n%p%n%s\n%n", 1234567, "jappja", 12345, &n1, &n1, &n2, "trall og trall", &fn1);
     }
 
     auto t2 = steady_clock::now();
@@ -1009,14 +1013,32 @@ int main(int, char**)
     for (int i = 0; i < Iter; ++i) {
         //snprintf(buffer, sizeof(buffer), "hello1 %f\n", 12234.15281);
         //snprintf(buffer, sizeof(buffer), "hello1 %20s\n", "hipphipp");
-        snprintf(buffer, sizeof(buffer), "hello1 %d\n", 1234567);
+        snprintf(buffer2, sizeof(buffer2), "hello2 %#x%s%u%n%p%n%s\n%n", 1234567, "jappja", 12345, &n1, &n1, &n2, "trall og trall", &fn2);
     }
 
     auto t4 = steady_clock::now();
     double delta2 = duration_cast<nanoseconds>(t4 - t3).count() / static_cast<double>(Iter);
 
-    printf("took, me   %f\n", delta1);
-    printf("took, them %f\n", delta2);
+    // verify
+    assert(fn1 == fn2);
+    assert(fn1 > 0);
+    bool ok = true;
+    int off;
+    for (off = 0; off < fn1; ++off) {
+        if (buffer1[off] != buffer2[off]) {
+            ok = false;
+            break;
+        }
+    }
+
+    if (ok) {
+        printf("took, me   %f\n", delta1);
+        printf("took, them %f\n", delta2);
+
+        printf("verified %d\n", fn1);
+    } else {
+        printf("verify failed at %d\n", off);
+    }
 
     return 0;
 }
