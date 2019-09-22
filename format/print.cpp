@@ -12,27 +12,45 @@ using namespace std::chrono;
 struct State
 {
     enum { None = -1, Star = -2 };
-    enum class Flags
+    enum Flags
     {
-        None        = 0x00,
-        LeftJustify = 0x02,
-        Sign        = 0x04,
-        Space       = 0x08,
-        Prefix      = 0x10,
-        ZeroPad     = 0x20
+        Flag_None        = 0x00,
+        Flag_LeftJustify = 0x02,
+        Flag_Sign        = 0x04,
+        Flag_Space       = 0x08,
+        Flag_Prefix      = 0x10,
+        Flag_ZeroPad     = 0x20
     };
     // enum class Length
     // {
     //     None, hh, h, ll, l, j, z, t, L
     // };
-    enum class Specifier
+    enum Specifier
     {
-        None, d, i, u, o, x, X, f, F, e, E, g, G, a, A, c, s, p, n
+        Spec_None,
+        Spec_d,
+        Spec_i,
+        Spec_u,
+        Spec_o,
+        Spec_x,
+        Spec_X,
+        Spec_f,
+        Spec_F,
+        Spec_e,
+        Spec_E,
+        Spec_g,
+        Spec_G,
+        Spec_a,
+        Spec_A,
+        Spec_c,
+        Spec_s,
+        Spec_p,
+        Spec_n
     };
-    Flags flags;
+    int32_t flags;
     // Length length;
-    int width; // can be Star which means that an additional argument will contain the actual number
-    int precision; // can be Star which means that an additional argument will contain the actual number
+    int32_t width; // can be Star which means that an additional argument will contain the actual number
+    int32_t precision; // can be Star which means that an additional argument will contain the actual number
     Specifier specifier;
 };
 
@@ -73,23 +91,12 @@ struct FileWriter
     size_t terminate() { return bufferoff; }
 };
 
-State::Flags& operator|=(State::Flags& l, State::Flags r)
-{
-    (*reinterpret_cast<std::underlying_type<State::Flags>::type*>(&l)) |= static_cast<std::underlying_type<State::Flags>::type>(r);
-    return l;
-}
-
-bool operator&(State::Flags l, State::Flags r)
-{
-    return (static_cast<std::underlying_type<State::Flags>::type>(l) & static_cast<std::underlying_type<State::Flags>::type>(r)) != 0;
-}
-
 inline void clearState(State& state)
 {
-    state.flags = State::Flags::None;
+    state.flags = State::Flag_None;
     // state.length = State::Length::None;
     state.width = state.precision = State::None;
-    state.specifier = State::Specifier::None;
+    state.specifier = State::Spec_None;
 };
 
 namespace detail
@@ -175,9 +182,9 @@ int print_execute_int_10_helper(State& state, Writer& writer, const char* format
     } else {
         if (arg < 0) {
             extra = '-';
-        } else if (state.flags & State::Flags::Sign) {
+        } else if (state.flags & State::Flag_Sign) {
             extra = '+';
-        } else if (state.flags & State::Flags::Space) {
+        } else if (state.flags & State::Flag_Space) {
             extra = ' ';
         }
         char* p_first = bufptr;
@@ -190,7 +197,7 @@ int print_execute_int_10_helper(State& state, Writer& writer, const char* format
     }
 
     const size_t n = bufptr - buffer;
-    const bool left = state.flags & State::Flags::LeftJustify;
+    const bool left = state.flags & State::Flag_LeftJustify;
 
     int precision = 0;
     if (state.precision != State::None) {
@@ -208,7 +215,7 @@ int print_execute_int_10_helper(State& state, Writer& writer, const char* format
         pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
     }
     char padchar = ' ';
-    if ((state.flags & State::Flags::ZeroPad) && !left && !precision)
+    if ((state.flags & State::Flag_ZeroPad) && !left && !precision)
         padchar = '0';
 
     if (precision)
@@ -276,7 +283,7 @@ int print_execute_int_16(State& state, Writer& writer, const char* format, size_
     char* bufptr = buffer;
     char extra = 0;
 
-    if (state.flags & State::Flags::Prefix)
+    if (state.flags & State::Flag_Prefix)
         extra = alphabet[16];
 
     if (number == 0) {
@@ -292,7 +299,7 @@ int print_execute_int_16(State& state, Writer& writer, const char* format, size_
     }
 
     const size_t n = bufptr - buffer;
-    const bool left = state.flags & State::Flags::LeftJustify;
+    const bool left = state.flags & State::Flag_LeftJustify;
 
     int precision = 0;
     if (state.precision != State::None) {
@@ -310,7 +317,7 @@ int print_execute_int_16(State& state, Writer& writer, const char* format, size_
         pad = std::max<int>(0, state.width - (n + (extra ? 2 : 0)));
     }
     char padchar = ' ';
-    if ((state.flags & State::Flags::ZeroPad) && !left && !precision)
+    if ((state.flags & State::Flag_ZeroPad) && !left && !precision)
         padchar = '0';
 
     if (precision)
@@ -372,7 +379,7 @@ int print_execute_int_8(State& state, Writer& writer, const char* format, size_t
     char* bufptr = buffer;
     char extra = 0;
 
-    if (state.flags & State::Flags::Prefix)
+    if (state.flags & State::Flag_Prefix)
         extra = '0';
 
     if (number == 0) {
@@ -389,7 +396,7 @@ int print_execute_int_8(State& state, Writer& writer, const char* format, size_t
     }
 
     const size_t n = bufptr - buffer;
-    const bool left = state.flags & State::Flags::LeftJustify;
+    const bool left = state.flags & State::Flag_LeftJustify;
 
     int precision = 0;
     if (state.precision != State::None) {
@@ -407,7 +414,7 @@ int print_execute_int_8(State& state, Writer& writer, const char* format, size_t
         pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
     }
     char padchar = ' ';
-    if ((state.flags & State::Flags::ZeroPad) && !left && !precision)
+    if ((state.flags & State::Flag_ZeroPad) && !left && !precision)
         padchar = '0';
 
     if (precision)
@@ -482,7 +489,7 @@ int print_execute_ptr(State& state, Writer& writer, const char* format, size_t f
     }
 
     const size_t n = bufptr - buffer;
-    const bool left = state.flags & State::Flags::LeftJustify;
+    const bool left = state.flags & State::Flag_LeftJustify;
 
     int pad = 0;
     if (state.width != State::None) {
@@ -490,7 +497,7 @@ int print_execute_ptr(State& state, Writer& writer, const char* format, size_t f
         pad = std::max<int>(0, state.width - (n + (extra ? 2 : 0)));
     }
     char padchar = ' ';
-    if ((state.flags & State::Flags::ZeroPad) && !left && extra)
+    if ((state.flags & State::Flag_ZeroPad) && !left && extra)
         padchar = '0';
 
     if (extra && padchar == '0') {
@@ -605,13 +612,13 @@ int print_execute_str(State& state, Writer& writer, const char* format, size_t f
         pad = std::max<int>(0, state.width - sz);
     }
 
-    if (pad && !(state.flags & State::Flags::LeftJustify)) {
+    if (pad && !(state.flags & State::Flag_LeftJustify)) {
         writePad<' '>(writer, pad);
     }
 
     writer.put(arg, sz);
 
-    if (pad && (state.flags & State::Flags::LeftJustify)) {
+    if (pad && (state.flags & State::Flag_LeftJustify)) {
         writePad<' '>(writer, pad);
     }
 
@@ -632,13 +639,13 @@ int print_execute_str(State& state, Writer& writer, const char* format, size_t f
         pad = std::max<int>(0, state.width - sz);
     }
 
-    if (pad && !(state.flags & State::Flags::LeftJustify)) {
+    if (pad && !(state.flags & State::Flag_LeftJustify)) {
         writePad<' '>(writer, pad);
     }
 
     writer.put(arg.c_str(), sz);
 
-    if (pad && (state.flags & State::Flags::LeftJustify)) {
+    if (pad && (state.flags & State::Flag_LeftJustify)) {
         writePad<' '>(writer, pad);
     }
 
@@ -682,13 +689,13 @@ int print_execute_ch(State& state, Writer& writer, const char* format, size_t fo
         pad = std::max<int>(0, state.width - 1);
     }
 
-    if (pad && !(state.flags & State::Flags::LeftJustify)) {
+    if (pad && !(state.flags & State::Flag_LeftJustify)) {
         writePad<' '>(writer, pad);
     }
 
     writer.put(static_cast<char>(ch));
 
-    if (pad && (state.flags & State::Flags::LeftJustify)) {
+    if (pad && (state.flags & State::Flag_LeftJustify)) {
         writePad<' '>(writer, pad);
     }
 
@@ -708,9 +715,9 @@ int print_execute_float(State& state, Writer& writer, const char* format, size_t
 
     char extra = 0;
     if (arg >= 0) {
-        if (state.flags & State::Flags::Sign)
+        if (state.flags & State::Flag_Sign)
             extra = '+';
-        else if (state.flags & State::Flags::Space)
+        else if (state.flags & State::Flag_Space)
             extra = ' ';
     } else {
         extra = '-';
@@ -720,7 +727,7 @@ int print_execute_float(State& state, Writer& writer, const char* format, size_t
     char buffer[2048];
     const int n = d2fixed_buffered_n(number, state.precision == State::None ? 6 : state.precision, buffer);
 
-    const bool left = state.flags & State::Flags::LeftJustify;
+    const bool left = state.flags & State::Flag_LeftJustify;
 
     int pad = 0;
     if (state.width != State::None) {
@@ -728,7 +735,7 @@ int print_execute_float(State& state, Writer& writer, const char* format, size_t
         pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
     }
     char padchar = ' ';
-    if ((state.flags & State::Flags::ZeroPad) && !left)
+    if ((state.flags & State::Flag_ZeroPad) && !left)
         padchar = '0';
 
     if (extra && padchar == '0')
@@ -775,9 +782,9 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
 
     char extra = 0;
     if (arg >= 0) {
-        if (state.flags & State::Flags::Sign)
+        if (state.flags & State::Flag_Sign)
             extra = '+';
-        else if (state.flags & State::Flags::Space)
+        else if (state.flags & State::Flag_Space)
             extra = ' ';
     } else {
         extra = '-';
@@ -818,7 +825,7 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
     }
 
     if (dot || buffer[i] == '.') {
-        const bool left = state.flags & State::Flags::LeftJustify;
+        const bool left = state.flags & State::Flag_LeftJustify;
 
         int pad = 0;
         if (state.width != State::None) {
@@ -826,7 +833,7 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
             pad = std::max<int>(0, state.width - (i + (extra ? 1 : 0)));
         }
         char padchar = ' ';
-        if ((state.flags & State::Flags::ZeroPad) && !left)
+        if ((state.flags & State::Flag_ZeroPad) && !left)
             padchar = '0';
 
         if (extra && padchar == '0')
@@ -874,7 +881,7 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
         }
     }
 
-    const bool left = state.flags & State::Flags::LeftJustify;
+    const bool left = state.flags & State::Flag_LeftJustify;
 
     int pad = 0;
     if (state.width != State::None) {
@@ -882,7 +889,7 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
         pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
     }
     char padchar = ' ';
-    if ((state.flags & State::Flags::ZeroPad) && !left)
+    if ((state.flags & State::Flag_ZeroPad) && !left)
         padchar = '0';
 
     if (extra && padchar == '0')
@@ -1091,19 +1098,19 @@ int print_get_flags(State& state, Writer& writer, const char* format, size_t for
     for (;; ++formatoff) {
         switch (format[formatoff]) {
         case '-':
-            state.flags |= State::Flags::LeftJustify;
+            state.flags |= State::Flag_LeftJustify;
             break;
         case '+':
-            state.flags |= State::Flags::Sign;
+            state.flags |= State::Flag_Sign;
             break;
         case ' ':
-            state.flags |= State::Flags::Space;
+            state.flags |= State::Flag_Space;
             break;
         case '#':
-            state.flags |= State::Flags::Prefix;
+            state.flags |= State::Flag_Prefix;
             break;
         case '0':
-            state.flags |= State::Flags::ZeroPad;
+            state.flags |= State::Flag_ZeroPad;
             break;
         case '\0':
             return print_error("Zero termination encountered in flags extraction", state, format, formatoff);
