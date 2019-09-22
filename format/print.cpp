@@ -102,7 +102,6 @@ inline void clearState(State& state)
 namespace detail
 {
 template<typename... Ts> struct make_void { typedef void type;};
-template<typename... Ts> using void_t = typename make_void<Ts...>::type;
 
 template <std::size_t ...>
 struct index_sequence {};
@@ -124,6 +123,8 @@ make_array(const T& value, index_sequence<Is...>)
     return {{(static_cast<void>(Is), value)...}};
 }
 }
+
+template<typename... Ts> using void_t = typename detail::make_void<Ts...>::type;
 
 template <std::size_t N, typename T>
 constexpr std::array<T, N> make_array(const T& value)
@@ -552,9 +553,9 @@ int print_execute_store(State& state, Writer& writer, const char* format, size_t
 template<typename, typename = void> struct has_global_to_string : std::false_type {};
 template<typename, typename = void> struct has_member_to_string_ref : std::false_type {};
 template<typename, typename = void> struct has_member_to_string_ptr : std::false_type {};
-template<typename T> struct has_global_to_string<T, detail::void_t<decltype(to_string(std::declval<T>()))> > : std::true_type {};
-template<typename T> struct has_member_to_string_ref<T, detail::void_t<decltype(std::declval<T>().to_string())> > : std::true_type {};
-template<typename T> struct has_member_to_string_ptr<T, detail::void_t<decltype(std::declval<T>()->to_string())> > : std::true_type {};
+template<typename T> struct has_global_to_string<T, void_t<decltype(to_string(std::declval<T>()))> > : std::true_type {};
+template<typename T> struct has_member_to_string_ref<T, void_t<decltype(std::declval<T>().to_string())> > : std::true_type {};
+template<typename T> struct has_member_to_string_ptr<T, void_t<decltype(std::declval<T>()->to_string())> > : std::true_type {};
 
 template<class T>
 struct is_c_string : std::integral_constant<
