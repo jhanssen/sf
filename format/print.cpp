@@ -621,7 +621,27 @@ int print_execute_str(State& state, Writer& writer, const char* format, size_t f
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<std::string, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    writer.put(arg.c_str(), arg.size());
+    size_t sz = arg.size();
+    if (state.precision != State::None && state.precision < sz) {
+        assert(state.precision >= 0);
+        sz = state.precision;
+    }
+    int pad = 0;
+    if (state.width != State::None) {
+        assert(state.width >= 0);
+        pad = std::max<int>(0, state.width - sz);
+    }
+
+    if (pad && !(state.flags & State::Flags::LeftJustify)) {
+        writePad<' '>(writer, pad);
+    }
+
+    writer.put(arg.c_str(), sz);
+
+    if (pad && (state.flags & State::Flags::LeftJustify)) {
+        writePad<' '>(writer, pad);
+    }
+
     return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
