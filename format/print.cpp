@@ -517,15 +517,12 @@ int print_execute_store(State& state, Writer& writer, const char* format, size_t
     return print_error("Argument is not an int pointer", state, format, formatoff);
 }
 
-template<typename, typename = void>
-struct has_global_to_string : std::false_type
-{
-};
-
-template<typename T>
-struct has_global_to_string<T, std::void_t<decltype(to_string(std::declval<T>()))> > : std::true_type
-{
-};
+template<typename, typename = void> struct has_global_to_string : std::false_type {};
+template<typename, typename = void> struct has_member_to_string_ref : std::false_type {};
+template<typename, typename = void> struct has_member_to_string_ptr : std::false_type {};
+template<typename T> struct has_global_to_string<T, std::void_t<decltype(to_string(std::declval<T>()))> > : std::true_type {};
+template<typename T> struct has_member_to_string_ref<T, std::void_t<decltype(std::declval<T>().to_string())> > : std::true_type {};
+template<typename T> struct has_member_to_string_ptr<T, std::void_t<decltype(std::declval<T>()->to_string())> > : std::true_type {};
 
 template<class T>
 struct is_c_string : std::integral_constant<
@@ -540,6 +537,8 @@ struct is_stringish : std::integral_constant<
     bool,
     is_c_string<T>::value ||
     has_global_to_string<T>::value ||
+    has_member_to_string_ref<T>::value ||
+    has_member_to_string_ptr<T>::value ||
     std::is_same<std::string, typename std::decay<T>::type>::value>
 {
 };
@@ -605,6 +604,18 @@ template<typename Writer, typename Arg, typename ...Args, typename std::enable_i
 int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
     return print_execute_str(state, writer, format, formatoff, to_string(std::forward<Arg>(arg)), std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<has_member_to_string_ref<Arg>::value, void>::type* = nullptr>
+int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_execute_str(state, writer, format, formatoff, arg.to_string(), std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<has_member_to_string_ptr<Arg>::value, void>::type* = nullptr>
+int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_execute_str(state, writer, format, formatoff, arg->to_string(), std::forward<Args>(args)...);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!is_stringish<Arg>::value, void>::type* = nullptr>
