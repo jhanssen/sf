@@ -222,7 +222,7 @@ int print_execute_int_10_helper(State& state, Writer& writer, const char* format
 template<bool Signed, typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_int_10(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    if constexpr (Signed) {
+    if (Signed) {
         return print_execute_int_10_helper(state, writer, format, formatoff, static_cast<typename std::make_signed<typename std::decay<Arg>::type>::type>(arg), std::forward<Args>(args)...);
     } else {
         return print_execute_int_10_helper(state, writer, format, formatoff, static_cast<typename std::make_unsigned<typename std::decay<Arg>::type>::type>(arg), std::forward<Args>(args)...);
@@ -517,12 +517,15 @@ int print_execute_store(State& state, Writer& writer, const char* format, size_t
     return print_error("Argument is not an int pointer", state, format, formatoff);
 }
 
+template<typename... Ts> struct make_void { typedef void type;};
+template<typename... Ts> using void_t = typename make_void<Ts...>::type;
+
 template<typename, typename = void> struct has_global_to_string : std::false_type {};
 template<typename, typename = void> struct has_member_to_string_ref : std::false_type {};
 template<typename, typename = void> struct has_member_to_string_ptr : std::false_type {};
-template<typename T> struct has_global_to_string<T, std::void_t<decltype(to_string(std::declval<T>()))> > : std::true_type {};
-template<typename T> struct has_member_to_string_ref<T, std::void_t<decltype(std::declval<T>().to_string())> > : std::true_type {};
-template<typename T> struct has_member_to_string_ptr<T, std::void_t<decltype(std::declval<T>()->to_string())> > : std::true_type {};
+template<typename T> struct has_global_to_string<T, void_t<decltype(to_string(std::declval<T>()))> > : std::true_type {};
+template<typename T> struct has_member_to_string_ref<T, void_t<decltype(std::declval<T>().to_string())> > : std::true_type {};
+template<typename T> struct has_member_to_string_ptr<T, void_t<decltype(std::declval<T>()->to_string())> > : std::true_type {};
 
 template<class T>
 struct is_c_string : std::integral_constant<
