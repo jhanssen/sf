@@ -1150,10 +1150,60 @@ int print(const char* format, Args&& ...args)
     return print_helper(state, writer, format, 0, std::forward<Args>(args)...);
 }
 
+struct Foobar
+{
+    Foobar(const char* s, int i)
+    {
+        str.resize(100);
+        str.resize(snprintf(&str[0], 100, "%s:%d", s, i));
+    }
+
+    std::string str;
+};
+
+std::string to_string(const Foobar& f)
+{
+    return f.str;
+}
+
+struct Foobar2
+{
+    Foobar2(const char* s, int i)
+    {
+        str.resize(100);
+        str.resize(snprintf(&str[0], 100, "%s:%d", s, i));
+    }
+
+    std::string str;
+
+    std::string to_string() const
+    {
+        return str;
+    }
+};
+
+class Foobar3
+{
+    Foobar3(const char* s, int i)
+        : str(s), ii(i)
+    {
+    }
+
+    std::string str;
+    int ii;
+
+    Foobar2 to_string() const
+    {
+        return Foobar2(str.c_str(), ii);
+    }
+};
+
 int main(int, char**)
 {
     // char buf[1024];
-    // print("hello '%8.*s'\n", 2, "ting");
+    Foobar foobar("abc", 123);
+    Foobar2 foobar3("trall", 42);
+    print("hello '%.*s' '%s' '%s'\n", 2, "trakk", foobar, foobar3);
     // printf("%d -> '%s'\n", i, buf);
     //const int i = snprint(buf, sizeof(buf), "hello %s\n", "hello");
 
