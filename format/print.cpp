@@ -1014,37 +1014,19 @@ int print_get_length(State& state, Writer& writer, const char* format, size_t fo
 {
     switch (format[formatoff]) {
     case 'h':
-        if (format[formatoff + 1] == 'h') {
-            // state.length = State::Length::hh;
-            formatoff += 2;
-        } else {
-            // state.length = State::Length::h;
+        ++formatoff;
+        if (format[formatoff + 1] == 'h')
             ++formatoff;
-        }
         break;
     case 'l':
-        if (format[formatoff + 1] == 'l') {
-            // state.length = State::Length::ll;
-            formatoff += 2;
-        } else {
-            // state.length = State::Length::l;
+        ++formatoff;
+        if (format[formatoff + 1] == 'l')
             ++formatoff;
-        }
         break;
     case 'j':
-        // state.length = State::Length::l;
-        ++formatoff;
-        break;
     case 'z':
-        // state.length = State::Length::z;
-        ++formatoff;
-        break;
     case 't':
-        // state.length = State::Length::t;
-        ++formatoff;
-        break;
     case 'L':
-        // state.length = State::Length::L;
         ++formatoff;
         break;
     case '\0':
