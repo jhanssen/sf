@@ -38,9 +38,14 @@ struct State
 
 struct BufferWriter
 {
-    char* buffer { nullptr };
-    size_t buffersize { 0 };
-    size_t bufferoff { 0 };
+    BufferWriter(char* b, size_t s)
+        : buffer(b), buffersize(s), bufferoff(0)
+    {
+    }
+
+    char* buffer;
+    size_t buffersize;
+    size_t bufferoff;
 
     void put(char c) { if (bufferoff < buffersize) buffer[bufferoff++] = c; else ++bufferoff; }
     void put(const char* c, size_t s) { const ssize_t m = std::min<ssize_t>(s, buffersize - bufferoff); if (m > 0) { memcpy(buffer + bufferoff, c, m); } bufferoff += s; }
@@ -52,8 +57,13 @@ struct BufferWriter
 
 struct FileWriter
 {
+    FileWriter(FILE* f)
+        : file(f), bufferoff(0)
+    {
+    }
+
     FILE* file;
-    size_t bufferoff { 0 };
+    size_t bufferoff;
 
     void put(char c) { fputc(c, file); ++bufferoff; }
     void put(const char* c, size_t s) { fwrite(c, 1, s, file); bufferoff += s; }
@@ -84,10 +94,25 @@ inline void clearState(State& state)
 
 namespace detail
 {
+template<typename... Ts> struct make_void { typedef void type;};
+template<typename... Ts> using void_t = typename make_void<Ts...>::type;
+
+template <std::size_t ...>
+struct index_sequence {};
+
+template <std::size_t N, std::size_t ... Next>
+struct index_sequence_helper : public index_sequence_helper<N-1U, N-1U, Next...> {};
+
+template <std::size_t ... Next>
+struct index_sequence_helper<0U, Next ... >
+{ using type = index_sequence<Next ... >; };
+
+template <std::size_t N>
+using make_index_sequence = typename index_sequence_helper<N>::type;
 
 template <typename T, std::size_t...Is>
 constexpr std::array<T, sizeof...(Is)>
-make_array(const T& value, std::index_sequence<Is...>)
+make_array(const T& value, index_sequence<Is...>)
 {
     return {{(static_cast<void>(Is), value)...}};
 }
@@ -96,7 +121,7 @@ make_array(const T& value, std::index_sequence<Is...>)
 template <std::size_t N, typename T>
 constexpr std::array<T, N> make_array(const T& value)
 {
-    return detail::make_array(value, std::make_index_sequence<N>());
+    return detail::make_array(value, detail::make_index_sequence<N>());
 }
 
 template<char Pad, typename Writer>
@@ -517,15 +542,12 @@ int print_execute_store(State& state, Writer& writer, const char* format, size_t
     return print_error("Argument is not an int pointer", state, format, formatoff);
 }
 
-template<typename... Ts> struct make_void { typedef void type;};
-template<typename... Ts> using void_t = typename make_void<Ts...>::type;
-
 template<typename, typename = void> struct has_global_to_string : std::false_type {};
 template<typename, typename = void> struct has_member_to_string_ref : std::false_type {};
 template<typename, typename = void> struct has_member_to_string_ptr : std::false_type {};
-template<typename T> struct has_global_to_string<T, void_t<decltype(to_string(std::declval<T>()))> > : std::true_type {};
-template<typename T> struct has_member_to_string_ref<T, void_t<decltype(std::declval<T>().to_string())> > : std::true_type {};
-template<typename T> struct has_member_to_string_ptr<T, void_t<decltype(std::declval<T>()->to_string())> > : std::true_type {};
+template<typename T> struct has_global_to_string<T, detail::void_t<decltype(to_string(std::declval<T>()))> > : std::true_type {};
+template<typename T> struct has_member_to_string_ref<T, detail::void_t<decltype(std::declval<T>().to_string())> > : std::true_type {};
+template<typename T> struct has_member_to_string_ptr<T, detail::void_t<decltype(std::declval<T>()->to_string())> > : std::true_type {};
 
 template<class T>
 struct is_c_string : std::integral_constant<
@@ -1116,7 +1138,7 @@ template<typename ...Args>
 int snprint(char* buffer, size_t size, const char* format, Args&& ...args)
 {
     State state;
-    BufferWriter writer { buffer, size, 0 };
+    BufferWriter writer(buffer, size);
     return print_helper(state, writer, format, 0, std::forward<Args>(args)...);
 }
 
@@ -1124,7 +1146,7 @@ template<typename ...Args>
 int print(const char* format, Args&& ...args)
 {
     State state;
-    FileWriter writer { stdout, 0 };
+    FileWriter writer(stdout);
     return print_helper(state, writer, format, 0, std::forward<Args>(args)...);
 }
 
