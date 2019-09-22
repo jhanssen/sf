@@ -1223,7 +1223,7 @@ int main(int, char**)
     // char buf[1024];
     Foobar foobar("abc", 123);
     Foobar2 foobar3("trall", 42);
-    print("hello '%.*s' '%s' '%s'\n", 2, "trakk", foobar, foobar3);
+    print("hello '%.*s' '%s' '%10.7s'\n", 2, "trakk", foobar, foobar3);
     // printf("%d -> '%s'\n", i, buf);
     //const int i = snprint(buf, sizeof(buf), "hello %s\n", "hello");
 
