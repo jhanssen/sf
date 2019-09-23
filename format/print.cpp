@@ -496,64 +496,63 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
         number = -number;
     }
 
-    char buffer[2048];
-    const int pr = state.precision == State::None ? 6 : state.precision;
-    int n = d2fixed_buffered_n(number, pr, buffer);
-
-    int sig = 0, i = 0;
-    bool done = false, dot = false;
-    done = false;
-    for (; i < n; ++i) {
-        switch (buffer[i]) {
-        case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9':
-            ++sig;
-            if (sig == pr)
-                done = true;
-            break;
-        case '.':
-            dot = true;
-            break;
+    auto chop = [](const char* b, size_t n, int& from, int& len, bool& allzero) -> int {
+        int sub1 = n;
+        int sub2 = -1;
+        int dummy = 0;
+        int e = -1;
+        int* what = &sub1;
+        for (; n > 0; --n) {
+            switch(b[n - 1]) {
+            case '0':
+            case '+':
+                --*what;
+                break;
+            case 'e':
+                --*what;
+                if (what == &dummy) {
+                    sub2 = e = n - 1;
+                    what = &sub2;
+                }
+                break;
+            case '.':
+                ++*what;
+                if (what != &dummy)
+                    what = &dummy;
+                break;
+            default:
+                allzero = false;
+                if (what != &dummy)
+                    what = &dummy;
+                break;
+            }
         }
-        if (done) {
-            ++i;
-            break;
+        if (e != -1 && sub2 != -1) {
+            from = sub2;
+            len = e - sub2;
         }
-    }
+        return sub1;
+    };
 
-    if (dot || buffer[i] == '.') {
-        return print_execute_helper(state, writer, buffer, i, &extra, 1, format, formatoff, std::forward<Args>(args)...);
-    }
+    const int precision = state.precision == State::None ? 6 : state.precision;
 
-    n = d2exp_buffered_n(number, std::max(pr - 1, 0), buffer);
-    const int orig = n;
-    done = false;
-    while (!done && n > 0) {
-        switch(buffer[n - 1]) {
-        case '0':
-        case '+':
-            --n;
-            break;
-        case 'e':
-            --n;
-            done = true;
-            break;
-        default:
-            n = orig;
-            done = true;
-            break;
+    char buffer1[2048];
+    char buffer2[2048];
+    int n1 = d2exp_buffered_n(number, precision, buffer1);
+    int n2 = d2fixed_buffered_n(number, precision, buffer2);
+    int from1 = 0, len1 = 0;
+    int from2 = 0, len2 = 0;
+    bool az1 = true, az2 = true;
+    n2 = chop(buffer2, n2, from2, len2, az2);
+    n1 = chop(buffer1, n1, from1, len1, az1);
+    if (n1 - len1 < n2 || (!az1 && az2)) {
+        if (len1 > 0) {
+            n1 -= len1;
+            memmove(buffer1 + from1, buffer1 + from1 + len1, n1);
         }
+        return print_execute_helper(state, writer, buffer1, n1, &extra, 1, format, formatoff, std::forward<Args>(args)...);
     }
-
-    return print_execute_helper(state, writer, buffer, n, &extra, 1, format, formatoff, std::forward<Args>(args)...);
+    return print_execute_helper(state, writer, buffer2, n2, &extra, 1, format, formatoff, std::forward<Args>(args)...);
 }
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<long double, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
@@ -564,6 +563,39 @@ int print_execute_float_shortest(State& state, Writer& writer, const char* forma
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_floating_point<Arg>::value, void>::type* = nullptr>
 int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument is not a floating point", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
+int print_execute_float_exp(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    Arg number = arg;
+
+    char extra = 0;
+    if (arg >= 0) {
+        if (state.flags & State::Flag_Sign)
+            extra = '+';
+        else if (state.flags & State::Flag_Space)
+            extra = ' ';
+    } else {
+        extra = '-';
+        number = -number;
+    }
+
+    char buffer[2048];
+    const int n = d2exp_buffered_n(number, state.precision == State::None ? 6 : state.precision, buffer);
+    return print_execute_helper(state, writer, buffer, n, &extra, 1, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<long double, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_float_exp(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Long double not implemented", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_floating_point<Arg>::value, void>::type* = nullptr>
+int print_execute_float_exp(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
     return print_error("Argument is not a floating point", state, format, formatoff);
 }
@@ -710,13 +742,14 @@ int print_execute(State& state, Writer& writer, const char* format, size_t forma
     case 'F':
         return print_execute_float(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'e':
+        return print_execute_float_exp(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
+    case 'g':
+        return print_execute_float_shortest(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 'E':
     case 'a':
     case 'A':
     case 'G':
-        return print_error("e/E/a/A/G not implemented", state, format, formatoff);
-    case 'g':
-        return print_execute_float_shortest(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
+        return print_error("E/a/A/G not implemented", state, format, formatoff);
     case 'c':
         return print_execute_ch(state, writer, format, formatoff + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     case 's':
