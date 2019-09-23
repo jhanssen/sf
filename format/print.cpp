@@ -407,7 +407,7 @@ int print_execute_int_8(State& state, Writer& writer, const char* format, size_t
     return print_error("Argument 8 is not integral", state, format, formatoff);
 }
 
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_pointer<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_pointer<typename std::decay<Arg>::type>::value || std::is_same<std::nullptr_t, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_ptr(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
 {
     uintptr_t number = reinterpret_cast<uintptr_t>(arg);
@@ -440,7 +440,7 @@ int print_execute_ptr(State& state, Writer& writer, const char* format, size_t f
     return print_execute_helper(state, writer, buffer, bufptr - buffer, extra, 2, format, formatoff, std::forward<Args>(args)...);
 }
 
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_pointer<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_pointer<typename std::decay<Arg>::type>::value && !std::is_same<std::nullptr_t, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_execute_ptr(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
 {
     return print_error("Argument is not pointer", state, format, formatoff);
