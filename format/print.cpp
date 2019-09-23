@@ -122,433 +122,9 @@ make_array(const T& value, index_sequence<Is...>)
 {
     return {{(static_cast<void>(Is), value)...}};
 }
-}
+} // namespace detail
 
 template<typename... Ts> using void_t = typename detail::make_void<Ts...>::type;
-
-template <std::size_t N, typename T>
-constexpr std::array<T, N> make_array(const T& value)
-{
-    return detail::make_array(value, detail::make_index_sequence<N>());
-}
-
-template<char Pad, typename Writer>
-void writePad(Writer& writer, int num)
-{
-    enum { Size = 64 };
-
-    constexpr auto a = make_array<Size>(Pad);
-
-    while (num > Size) {
-        writer.put(a.data(), Size);
-        num -= Size;
-    }
-    if (num > 0) {
-        writer.put(a.data(), num);
-    }
-}
-
-template<size_t N>
-inline int print_error(const char (&type)[N], State& state, const char* format, size_t formatoff)
-{
-    fwrite(type, 1, N, stderr);
-    fwrite("\n", 1, 2, stderr);
-    fflush(stderr);
-    abort();
-}
-
-template<typename Writer, typename ...Args>
-int print_helper(State& state, Writer& writer, const char* format, size_t formatoff, Args&& ...args);
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_int_10_helper(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    // adapted from http://ideone.com/nrQfA8
-
-    typedef typename std::decay<Arg>::type ArgType;
-    typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
-    typedef std::numeric_limits<ArgType> Info;
-
-    UnsignedArgType unumber = arg < 0 ? -arg : arg;
-
-    const int digits = Info::digits10;
-    const int bufsize = digits + 2;
-
-    char buffer[bufsize];
-    char* bufptr = buffer;
-    char extra = 0;
-
-    if (arg == 0) {
-        *bufptr++ = '0';
-    } else {
-        if (arg < 0) {
-            extra = '-';
-        } else if (state.flags & State::Flag_Sign) {
-            extra = '+';
-        } else if (state.flags & State::Flag_Space) {
-            extra = ' ';
-        }
-        char* p_first = bufptr;
-        while (unumber != 0)
-        {
-            *bufptr++ = '0' + unumber % 10;
-            unumber /= 10;
-        }
-        std::reverse(p_first, bufptr);
-    }
-
-    const size_t n = bufptr - buffer;
-    const bool left = state.flags & State::Flag_LeftJustify;
-
-    int precision = 0;
-    if (state.precision != State::None) {
-        assert(state.precision >= 0);
-        precision = state.precision;
-
-        // precision of 0 means that the number 0 should not be emitted
-        if (!precision && n == 1 && buffer[n] == '0')
-            return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
-    }
-
-    int pad = 0;
-    if (state.width != State::None) {
-        assert(state.width >= 0);
-        pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
-    }
-    char padchar = ' ';
-    if ((state.flags & State::Flag_ZeroPad) && !left && !precision)
-        padchar = '0';
-
-    if (precision)
-        pad = std::max(0, pad - precision);
-
-    if (extra && padchar == '0')
-        writer.put(extra);
-
-    if (pad && !left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    if (extra && padchar == ' ')
-        writer.put(extra);
-
-    if (precision) {
-        writePad<'0'>(writer, precision);
-    }
-
-    writer.put(buffer, n);
-
-    if (pad && left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    // do stuff
-    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
-}
-
-template<bool Signed, typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_int_10(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    if (Signed) {
-        return print_execute_int_10_helper(state, writer, format, formatoff, static_cast<typename std::make_signed<typename std::decay<Arg>::type>::type>(arg), std::forward<Args>(args)...);
-    } else {
-        return print_execute_int_10_helper(state, writer, format, formatoff, static_cast<typename std::make_unsigned<typename std::decay<Arg>::type>::type>(arg), std::forward<Args>(args)...);
-    }
-}
-
-template<bool Signed, typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_int_10(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    return print_error("Argument 10 is not integral", state, format, formatoff);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_int_16(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
-{
-    typedef typename std::decay<Arg>::type ArgType;
-    typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
-    typedef std::numeric_limits<ArgType> Info;
-
-    UnsignedArgType number = static_cast<UnsignedArgType>(arg);
-
-    const int digits = Info::digits10;
-    const int bufsize = digits + 2;
-
-    char buffer[bufsize];
-    char* bufptr = buffer;
-    char extra = 0;
-
-    if (state.flags & State::Flag_Prefix)
-        extra = alphabet[16];
-
-    if (number == 0) {
-        *bufptr++ = '0';
-    } else {
-        char* p_first = bufptr;
-        while (number != 0)
-        {
-            *bufptr++ = alphabet[number & 0xf];
-            number >>= 4;
-        }
-        std::reverse(p_first, bufptr);
-    }
-
-    const size_t n = bufptr - buffer;
-    const bool left = state.flags & State::Flag_LeftJustify;
-
-    int precision = 0;
-    if (state.precision != State::None) {
-        assert(state.precision >= 0);
-        precision = state.precision;
-
-        // precision of 0 means that the number 0 should not be emitted
-        if (!precision && n == 1 && buffer[n] == '0')
-            return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
-    }
-
-    int pad = 0;
-    if (state.width != State::None) {
-        assert(state.width >= 0);
-        pad = std::max<int>(0, state.width - (n + (extra ? 2 : 0)));
-    }
-    char padchar = ' ';
-    if ((state.flags & State::Flag_ZeroPad) && !left && !precision)
-        padchar = '0';
-
-    if (precision)
-        pad = std::max(0, pad - precision);
-
-    if (extra && padchar == '0') {
-        writer.put('0');
-        writer.put(extra);
-    }
-
-    if (pad && !left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    if (extra && padchar == ' ') {
-        writer.put('0');
-        writer.put(extra);
-    }
-
-    if (precision) {
-        writePad<'0'>(writer, precision);
-    }
-
-    writer.put(buffer, n);
-
-    if (pad && left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    // do stuff
-    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_int_16(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
-{
-    return print_error("Argument 16 is not integral", state, format, formatoff);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_int_8(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    typedef typename std::decay<Arg>::type ArgType;
-    typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
-    typedef std::numeric_limits<ArgType> Info;
-
-    UnsignedArgType number = static_cast<UnsignedArgType>(arg);
-
-    const int digits = Info::digits10;
-    const int bufsize = digits + 2;
-
-    char buffer[bufsize];
-    char* bufptr = buffer;
-    char extra = 0;
-
-    if (state.flags & State::Flag_Prefix)
-        extra = '0';
-
-    if (number == 0) {
-        *bufptr++ = '0';
-        extra = 0;
-    } else {
-        char* p_first = bufptr;
-        while (number != 0)
-        {
-            *bufptr++ = '0' + (number & 0x7);
-            number >>= 3;
-        }
-        std::reverse(p_first, bufptr);
-    }
-
-    const size_t n = bufptr - buffer;
-    const bool left = state.flags & State::Flag_LeftJustify;
-
-    int precision = 0;
-    if (state.precision != State::None) {
-        assert(state.precision >= 0);
-        precision = state.precision;
-
-        // precision of 0 means that the number 0 should not be emitted
-        if (!precision && n == 1 && buffer[n] == '0')
-            return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
-    }
-
-    int pad = 0;
-    if (state.width != State::None) {
-        assert(state.width >= 0);
-        pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
-    }
-    char padchar = ' ';
-    if ((state.flags & State::Flag_ZeroPad) && !left && !precision)
-        padchar = '0';
-
-    if (precision)
-        pad = std::max(0, pad - precision);
-
-    if (extra && padchar == '0') {
-        writer.put(extra);
-    }
-
-    if (pad && !left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    if (extra && padchar == ' ') {
-        writer.put(extra);
-    }
-
-    if (precision) {
-        writePad<'0'>(writer, precision);
-    }
-
-    writer.put(buffer, n);
-
-    if (pad && left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    // do stuff
-    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_int_8(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    return print_error("Argument 8 is not integral", state, format, formatoff);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_pointer<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_ptr(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
-{
-    uintptr_t number = reinterpret_cast<uintptr_t>(arg);
-    typedef std::numeric_limits<uintptr_t> Info;
-
-    const int digits = Info::digits10;
-    const int bufsize = digits + 2;
-
-    char buffer[bufsize];
-    char* bufptr = buffer;
-    char extra = alphabet[16];
-
-    if (number == 0) {
-        *bufptr++ = '(';
-        *bufptr++ = 'n';
-        *bufptr++ = 'i';
-        *bufptr++ = 'l';
-        *bufptr++ = ')';
-        extra = 0;
-    } else {
-        char* p_first = bufptr;
-        while (number != 0)
-        {
-            *bufptr++ = alphabet[number & 0xf];
-            number >>= 4;
-        }
-        std::reverse(p_first, bufptr);
-    }
-
-    const size_t n = bufptr - buffer;
-    const bool left = state.flags & State::Flag_LeftJustify;
-
-    int pad = 0;
-    if (state.width != State::None) {
-        assert(state.width >= 0);
-        pad = std::max<int>(0, state.width - (n + (extra ? 2 : 0)));
-    }
-    char padchar = ' ';
-    if ((state.flags & State::Flag_ZeroPad) && !left && extra)
-        padchar = '0';
-
-    if (extra && padchar == '0') {
-        writer.put('0');
-        writer.put(extra);
-    }
-
-    if (pad && !left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    if (extra && padchar == ' ') {
-        writer.put('0');
-        writer.put(extra);
-    }
-
-    writer.put(buffer, n);
-
-    if (pad && left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    // do stuff
-    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_pointer<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_ptr(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
-{
-    return print_error("Argument is not pointer", state, format, formatoff);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<int*, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_store(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    *arg = static_cast<int>(writer.offset());
-    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_same<int*, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_store(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    return print_error("Argument is not an int pointer", state, format, formatoff);
-}
 
 template<typename, typename = void> struct has_global_to_string : std::false_type {};
 template<typename, typename = void> struct has_member_to_string_ref : std::false_type {};
@@ -598,6 +174,412 @@ struct is_float_double : std::integral_constant<
 template<typename T> struct dependent_false : std::false_type
 {
 };
+
+template <std::size_t N, typename T>
+constexpr std::array<T, N> make_array(const T& value)
+{
+    return detail::make_array(value, detail::make_index_sequence<N>());
+}
+
+template<char Pad, typename Writer>
+void writePad(Writer& writer, int num)
+{
+    enum { Size = 64 };
+
+    constexpr auto a = make_array<Size>(Pad);
+
+    while (num > Size) {
+        writer.put(a.data(), Size);
+        num -= Size;
+    }
+    if (num > 0) {
+        writer.put(a.data(), num);
+    }
+}
+
+template<size_t N>
+inline int print_error(const char (&type)[N], State& state, const char* format, size_t formatoff)
+{
+    fwrite(type, 1, N, stderr);
+    fwrite("\n", 1, 2, stderr);
+    fflush(stderr);
+    abort();
+}
+
+template<typename Writer, typename ...Args>
+int print_execute_helper(State& state, Writer& writer, const char* buffer, size_t bufsiz, const char* extra, size_t extrasiz, const char* format, size_t formatoff, Args&& ...args)
+{
+    const bool left = state.flags & State::Flag_LeftJustify;
+
+    int precision = 0;
+    if (state.precision != State::None) {
+        assert(state.precision >= 0);
+        precision = state.precision;
+
+        // precision of 0 means that the number 0 should not be emitted
+        if (!precision && bufsiz == 1 && buffer[bufsiz] == '0')
+            return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+    }
+
+    const bool hasextra = extrasiz && extra[0] != 0;
+
+    int pad = 0;
+    if (state.width != State::None) {
+        assert(state.width >= 0);
+        pad = std::max<int>(0, state.width - (bufsiz + (hasextra ? extrasiz : 0)));
+    }
+    char padchar = ' ';
+    if ((state.flags & State::Flag_ZeroPad) && !left && !precision)
+        padchar = '0';
+
+    if (precision)
+        pad = std::max(0, pad - precision);
+
+    if (hasextra && padchar == '0')
+        writer.put(extra, extrasiz);
+
+    if (pad && !left) {
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
+    }
+
+    if (hasextra && padchar == ' ')
+        writer.put(extra, extrasiz);
+
+    if (precision) {
+        writePad<'0'>(writer, precision);
+    }
+
+    writer.put(buffer, bufsiz);
+
+    if (pad && left) {
+        if (padchar == '0')
+            writePad<'0'>(writer, pad);
+        else
+            writePad<' '>(writer, pad);
+    }
+
+    // do stuff
+    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename ...Args>
+int print_helper(State& state, Writer& writer, const char* format, size_t formatoff, Args&& ...args);
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_10_helper(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    // adapted from http://ideone.com/nrQfA8
+
+    typedef typename std::decay<Arg>::type ArgType;
+    typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
+    typedef std::numeric_limits<ArgType> Info;
+
+    UnsignedArgType unumber = arg < 0 ? -arg : arg;
+
+    const int digits = Info::digits10;
+    const int bufsize = digits + 2;
+
+    char buffer[bufsize];
+    char* bufptr = buffer;
+    char extra = 0;
+
+    if (arg == 0) {
+        *bufptr++ = '0';
+    } else {
+        if (arg < 0) {
+            extra = '-';
+        } else if (state.flags & State::Flag_Sign) {
+            extra = '+';
+        } else if (state.flags & State::Flag_Space) {
+            extra = ' ';
+        }
+        char* p_first = bufptr;
+        while (unumber != 0)
+        {
+            *bufptr++ = '0' + unumber % 10;
+            unumber /= 10;
+        }
+        std::reverse(p_first, bufptr);
+    }
+
+    return print_execute_helper(state, writer, buffer, bufptr - buffer, &extra, 1, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<bool Signed, typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_10(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    if (Signed) {
+        return print_execute_int_10_helper(state, writer, format, formatoff, static_cast<typename std::make_signed<typename std::decay<Arg>::type>::type>(arg), std::forward<Args>(args)...);
+    } else {
+        return print_execute_int_10_helper(state, writer, format, formatoff, static_cast<typename std::make_unsigned<typename std::decay<Arg>::type>::type>(arg), std::forward<Args>(args)...);
+    }
+}
+
+template<bool Signed, typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_10(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument 10 is not integral", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_16(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
+{
+    typedef typename std::decay<Arg>::type ArgType;
+    typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
+    typedef std::numeric_limits<ArgType> Info;
+
+    UnsignedArgType number = static_cast<UnsignedArgType>(arg);
+
+    const int digits = Info::digits10;
+    const int bufsize = digits + 2;
+
+    char buffer[bufsize];
+    char* bufptr = buffer;
+    char extra[2] = { 0, 0 };
+
+    if (state.flags & State::Flag_Prefix) {
+        extra[0] = '0';
+        extra[1] = alphabet[16];
+    }
+
+    if (number == 0) {
+        *bufptr++ = '0';
+    } else {
+        char* p_first = bufptr;
+        while (number != 0)
+        {
+            *bufptr++ = alphabet[number & 0xf];
+            number >>= 4;
+        }
+        std::reverse(p_first, bufptr);
+    }
+
+    return print_execute_helper(state, writer, buffer, bufptr - buffer, extra, 2, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_16(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument 16 is not integral", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_8(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    typedef typename std::decay<Arg>::type ArgType;
+    typedef typename std::make_unsigned<ArgType>::type UnsignedArgType;
+    typedef std::numeric_limits<ArgType> Info;
+
+    UnsignedArgType number = static_cast<UnsignedArgType>(arg);
+
+    const int digits = Info::digits10;
+    const int bufsize = digits + 2;
+
+    char buffer[bufsize];
+    char* bufptr = buffer;
+    char extra = 0;
+
+    if (state.flags & State::Flag_Prefix)
+        extra = '0';
+
+    if (number == 0) {
+        *bufptr++ = '0';
+        extra = 0;
+    } else {
+        char* p_first = bufptr;
+        while (number != 0)
+        {
+            *bufptr++ = '0' + (number & 0x7);
+            number >>= 3;
+        }
+        std::reverse(p_first, bufptr);
+    }
+
+    return print_execute_helper(state, writer, buffer, bufptr - buffer, &extra, 1, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_integral<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_int_8(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument 8 is not integral", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_pointer<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_ptr(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
+{
+    uintptr_t number = reinterpret_cast<uintptr_t>(arg);
+    typedef std::numeric_limits<uintptr_t> Info;
+
+    const int digits = Info::digits10;
+    const int bufsize = digits + 2;
+
+    char buffer[bufsize];
+    char* bufptr = buffer;
+    char extra[2] = { '0', 'x' };
+
+    if (number == 0) {
+        *bufptr++ = '(';
+        *bufptr++ = 'n';
+        *bufptr++ = 'i';
+        *bufptr++ = 'l';
+        *bufptr++ = ')';
+        extra[0] = 0;
+    } else {
+        char* p_first = bufptr;
+        while (number != 0)
+        {
+            *bufptr++ = alphabet[number & 0xf];
+            number >>= 4;
+        }
+        std::reverse(p_first, bufptr);
+    }
+
+    return print_execute_helper(state, writer, buffer, bufptr - buffer, extra, 2, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_pointer<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_ptr(State& state, Writer& writer, const char* format, size_t formatoff, const char* alphabet, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument is not pointer", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
+int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    Arg number = arg;
+
+    char extra = 0;
+    if (arg >= 0) {
+        if (state.flags & State::Flag_Sign)
+            extra = '+';
+        else if (state.flags & State::Flag_Space)
+            extra = ' ';
+    } else {
+        extra = '-';
+        number = -number;
+    }
+
+    char buffer[2048];
+    const int n = d2fixed_buffered_n(number, state.precision == State::None ? 6 : state.precision, buffer);
+
+    return print_execute_helper(state, writer, buffer, n, &extra, 1, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<long double, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Long double not implemented", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_floating_point<Arg>::value, void>::type* = nullptr>
+int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument is not a floating point", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
+int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    Arg number = arg;
+
+    char extra = 0;
+    if (arg >= 0) {
+        if (state.flags & State::Flag_Sign)
+            extra = '+';
+        else if (state.flags & State::Flag_Space)
+            extra = ' ';
+    } else {
+        extra = '-';
+        number = -number;
+    }
+
+    char buffer[2048];
+    const int pr = state.precision == State::None ? 6 : state.precision;
+    int n = d2fixed_buffered_n(number, pr, buffer);
+
+    int sig = 0, i = 0;
+    bool done = false, dot = false;
+    done = false;
+    for (; i < n; ++i) {
+        switch (buffer[i]) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            ++sig;
+            if (sig == pr)
+                done = true;
+            break;
+        case '.':
+            dot = true;
+            break;
+        }
+        if (done) {
+            ++i;
+            break;
+        }
+    }
+
+    if (dot || buffer[i] == '.') {
+        return print_execute_helper(state, writer, buffer, i, &extra, 1, format, formatoff, std::forward<Args>(args)...);
+    }
+
+    n = d2exp_buffered_n(number, std::max(pr - 1, 0), buffer);
+    const int orig = n;
+    done = false;
+    while (!done && n > 0) {
+        switch(buffer[n - 1]) {
+        case '0':
+        case '+':
+            --n;
+            break;
+        case 'e':
+            --n;
+            done = true;
+            break;
+        default:
+            n = orig;
+            done = true;
+            break;
+        }
+    }
+
+    return print_execute_helper(state, writer, buffer, n, &extra, 1, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<long double, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Long double not implemented", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_floating_point<Arg>::value, void>::type* = nullptr>
+int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument is not a floating point", state, format, formatoff);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<int*, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_store(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    *arg = static_cast<int>(writer.offset());
+    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
+}
+
+template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_same<int*, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+int print_execute_store(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
+{
+    return print_error("Argument is not an int pointer", state, format, formatoff);
+}
 
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_c_string<Arg>::value, void>::type* = nullptr>
 int print_execute_str(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
@@ -707,227 +689,6 @@ template<typename Writer, typename Arg, typename ...Args, typename std::enable_i
 int print_execute_ch(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
     return print_error("Argument is not a char", state, format, formatoff);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
-int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    Arg number = arg;
-
-    char extra = 0;
-    if (arg >= 0) {
-        if (state.flags & State::Flag_Sign)
-            extra = '+';
-        else if (state.flags & State::Flag_Space)
-            extra = ' ';
-    } else {
-        extra = '-';
-        number = -number;
-    }
-
-    char buffer[2048];
-    const int n = d2fixed_buffered_n(number, state.precision == State::None ? 6 : state.precision, buffer);
-
-    const bool left = state.flags & State::Flag_LeftJustify;
-
-    int pad = 0;
-    if (state.width != State::None) {
-        assert(state.width >= 0);
-        pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
-    }
-    char padchar = ' ';
-    if ((state.flags & State::Flag_ZeroPad) && !left)
-        padchar = '0';
-
-    if (extra && padchar == '0')
-        writer.put(extra);
-
-    if (pad && !left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    if (extra && padchar == ' ')
-        writer.put(extra);
-
-    writer.put(buffer, n);
-
-    if (pad && left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<long double, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    return print_error("Long double not implemented", state, format, formatoff);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_floating_point<Arg>::value, void>::type* = nullptr>
-int print_execute_float(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    return print_error("Argument is not a floating point", state, format, formatoff);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<is_float_double<Arg>::value, void>::type* = nullptr>
-int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    Arg number = arg;
-
-    char extra = 0;
-    if (arg >= 0) {
-        if (state.flags & State::Flag_Sign)
-            extra = '+';
-        else if (state.flags & State::Flag_Space)
-            extra = ' ';
-    } else {
-        extra = '-';
-        number = -number;
-    }
-
-    char buffer[2048];
-    const int pr = state.precision == State::None ? 6 : state.precision;
-    int n = d2fixed_buffered_n(number, pr, buffer);
-
-    int sig = 0, i = 0;
-    bool done = false, dot = false;
-    done = false;
-    for (; i < n; ++i) {
-        switch (buffer[i]) {
-        case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9':
-            ++sig;
-            if (sig == pr)
-                done = true;
-            break;
-        case '.':
-            dot = true;
-            break;
-        }
-        if (done) {
-            ++i;
-            break;
-        }
-    }
-
-    if (dot || buffer[i] == '.') {
-        const bool left = state.flags & State::Flag_LeftJustify;
-
-        int pad = 0;
-        if (state.width != State::None) {
-            assert(state.width >= 0);
-            pad = std::max<int>(0, state.width - (i + (extra ? 1 : 0)));
-        }
-        char padchar = ' ';
-        if ((state.flags & State::Flag_ZeroPad) && !left)
-            padchar = '0';
-
-        if (extra && padchar == '0')
-            writer.put(extra);
-
-        if (pad && !left) {
-            if (padchar == '0')
-                writePad<'0'>(writer, pad);
-            else
-                writePad<' '>(writer, pad);
-        }
-
-        if (extra && padchar == ' ')
-            writer.put(extra);
-
-        writer.put(buffer, i);
-
-        if (pad && left) {
-            if (padchar == '0')
-                writePad<'0'>(writer, pad);
-            else
-                writePad<' '>(writer, pad);
-        }
-
-        return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
-    }
-
-    n = d2exp_buffered_n(number, std::max(pr - 1, 0), buffer);
-    const int orig = n;
-    done = false;
-    while (!done && n > 0) {
-        switch(buffer[n - 1]) {
-        case '0':
-        case '+':
-            --n;
-            break;
-        case 'e':
-            --n;
-            done = true;
-            break;
-        default:
-            n = orig;
-            done = true;
-            break;
-        }
-    }
-
-    const bool left = state.flags & State::Flag_LeftJustify;
-
-    int pad = 0;
-    if (state.width != State::None) {
-        assert(state.width >= 0);
-        pad = std::max<int>(0, state.width - (n + (extra ? 1 : 0)));
-    }
-    char padchar = ' ';
-    if ((state.flags & State::Flag_ZeroPad) && !left)
-        padchar = '0';
-
-    if (extra && padchar == '0')
-        writer.put(extra);
-
-    if (pad && !left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    if (extra && padchar == ' ')
-        writer.put(extra);
-
-    writer.put(buffer, n);
-
-    if (pad && left) {
-        if (padchar == '0')
-            writePad<'0'>(writer, pad);
-        else
-            writePad<' '>(writer, pad);
-    }
-
-    return print_helper(state, writer, format, formatoff, std::forward<Args>(args)...);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<long double, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    return print_error("Long double not implemented", state, format, formatoff);
-}
-
-template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<!std::is_floating_point<Arg>::value, void>::type* = nullptr>
-int print_execute_float_shortest(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
-{
-    return print_error("Argument is not a floating point", state, format, formatoff);
 }
 
 template<typename Writer, typename Arg, typename ...Args>
