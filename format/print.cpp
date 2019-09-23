@@ -773,7 +773,7 @@ int print_execute(State& state, Writer& writer, const char* format, size_t forma
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<int, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_get_precision_argument(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    state.precision = arg;
+    state.precision = std::min<int>(arg, 200);
     return print_execute(state, writer, format, formatoff, std::forward<Args>(args)...);
 }
 
@@ -792,7 +792,7 @@ int print_get_precision_argument(State& state, Writer& writer, const char* forma
 template<typename Writer, typename Arg, typename ...Args, typename std::enable_if<std::is_same<int, typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 int print_get_width_argument(State& state, Writer& writer, const char* format, size_t formatoff, Arg&& arg, Args&& ...args)
 {
-    state.width = arg;
+    state.width = std::min<int>(arg, 1024);
     if (state.precision == State::Star) {
         return print_get_precision_argument(state, writer, format, formatoff, std::forward<Args>(args)...);
     }
@@ -862,6 +862,7 @@ int print_get_precision(State& state, Writer& writer, const char* format, size_t
         } else if (format[formatoff] == '\0') {
             return print_error("Zero termination encountered in precision extraction", state, format, formatoff);
         } else {
+            state.precision = std::min(state.precision, 200);
             return print_get_length(state, writer, format, formatoff, std::forward<Args>(args)...);
         }
     }
@@ -882,6 +883,7 @@ int print_get_width(State& state, Writer& writer, const char* format, size_t for
         } else if (format[formatoff] == '\0') {
             return print_error("Zero termination encountered in width extraction", state, format, formatoff);
         } else {
+            state.width = std::min(state.width, 1024);
             return print_get_precision(state, writer, format, formatoff, std::forward<Args>(args)...);
         }
     }
