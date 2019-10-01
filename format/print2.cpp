@@ -401,7 +401,7 @@ void print2_format_buffer(Writer& writer, const State& state, const char* buffer
 }
 
 template<typename Writer>
-void print2_format_ch(Writer& writer, const State& state, Arguments<Writer>&& args, int argno)
+void print2_format_ch(Writer& writer, const State& state, const Arguments<Writer>& args, int argno)
 {
     const uint32_t ch = static_cast<uint32_t>(ArgumentGetter<Writer, int32_t>::get(args, argno)) % 256;
 
@@ -423,7 +423,7 @@ void print2_format_ch(Writer& writer, const State& state, Arguments<Writer>&& ar
 }
 
 template<typename Writer, typename ArgType>
-void print2_format_float(Writer& writer, const State& state, Arguments<Writer>&& args, int argno)
+void print2_format_float(Writer& writer, const State& state, const Arguments<Writer>& args, int argno)
 {
     ArgType number = ArgumentGetter<Writer, ArgType>::get(args, argno);
 
@@ -445,7 +445,7 @@ void print2_format_float(Writer& writer, const State& state, Arguments<Writer>&&
 }
 
 template<typename Writer, typename ArgType>
-void print2_format_float_exp(Writer& writer, const State& state, Arguments<Writer>&& args, int argno)
+void print2_format_float_exp(Writer& writer, const State& state, const Arguments<Writer>& args, int argno)
 {
     ArgType number = ArgumentGetter<Writer, ArgType>::get(args, argno);
 
@@ -467,7 +467,7 @@ void print2_format_float_exp(Writer& writer, const State& state, Arguments<Write
 }
 
 template<typename Writer, typename ArgType>
-void print2_format_float_shortest(Writer& writer, const State& state, Arguments<Writer>&& args, int argno)
+void print2_format_float_shortest(Writer& writer, const State& state, const Arguments<Writer>& args, int argno)
 {
     ArgType number = ArgumentGetter<Writer, ArgType>::get(args, argno);
 
@@ -543,7 +543,7 @@ void print2_format_float_shortest(Writer& writer, const State& state, Arguments<
 }
 
 template<typename Writer, typename UnsignedArgType>
-void print2_format_int_8(Writer& writer, const State& state, Arguments<Writer>&& args, int argno)
+void print2_format_int_8(Writer& writer, const State& state, const Arguments<Writer>& args, int argno)
 {
     typedef std::numeric_limits<UnsignedArgType> Info;
 
@@ -577,7 +577,7 @@ void print2_format_int_8(Writer& writer, const State& state, Arguments<Writer>&&
 
 
 template<typename Writer, typename ArgType>
-void print2_format_int_10(Writer& writer, const State& state, Arguments<Writer>&& args, int argno)
+void print2_format_int_10(Writer& writer, const State& state, const Arguments<Writer>& args, int argno)
 {
     // adapted from http://ideone.com/nrQfA8
 
@@ -617,7 +617,7 @@ void print2_format_int_10(Writer& writer, const State& state, Arguments<Writer>&
 }
 
 template<typename Writer, typename ArgType, typename UnsignedArgType = ArgType>
-void print2_format_int_16(Writer& writer, const State& state, const char* alphabet, Arguments<Writer>&& args, int argno)
+void print2_format_int_16(Writer& writer, const State& state, const char* alphabet, const Arguments<Writer>& args, int argno)
 {
     typedef std::numeric_limits<ArgType> Info;
 
@@ -676,7 +676,7 @@ void print2_format_generic(Writer& writer, const State& state, const typename Ar
 }
 
 template<typename Writer>
-void print2_format_str(Writer& writer, const State& state, Arguments<Writer>&& args, int argno)
+void print2_format_str(Writer& writer, const State& state, const Arguments<Writer>& args, int argno)
 {
     const auto& arg = args.args[argno];
     switch (arg.type) {
@@ -1043,7 +1043,7 @@ inline int print2_parse_state(const char* format, int formatoff, State& state)
 }
 
 template<typename Writer>
-int print2_helper(Writer& writer, State& state, const char* format, Arguments<Writer>&& args)
+int print2_helper(Writer& writer, State& state, const char* format, const Arguments<Writer>& args)
 {
     int formatoff = 0;
     int arg = 0;
@@ -1060,29 +1060,29 @@ int print2_helper(Writer& writer, State& state, const char* format, Arguments<Wr
                 switch (format[formatoff++]) {
                 case 'd':
                 case 'i':
-                    print2_format_int_10<Writer, int64_t>(writer, state, std::forward<Arguments<Writer> >(args), arg++);
+                    print2_format_int_10<Writer, int64_t>(writer, state, args, arg++);
                     break;
                 case 'u':
-                    print2_format_int_10<Writer, uint64_t>(writer, state, std::forward<Arguments<Writer> >(args), arg++);
+                    print2_format_int_10<Writer, uint64_t>(writer, state, args, arg++);
                     break;
                 case 'o':
-                    print2_format_int_8<Writer, uint64_t>(writer, state, std::forward<Arguments<Writer> >(args), arg++);
+                    print2_format_int_8<Writer, uint64_t>(writer, state, args, arg++);
                     break;
                 case 'x':
-                    print2_format_int_16<Writer, uint64_t>(writer, state, "0123456789abcdefx", std::forward<Arguments<Writer> >(args), arg++);
+                    print2_format_int_16<Writer, uint64_t>(writer, state, "0123456789abcdefx", args, arg++);
                     break;
                 case 'X':
-                    print2_format_int_16<Writer, uint64_t>(writer, state, "0123456789ABCDEFX", std::forward<Arguments<Writer> >(args), arg++);
+                    print2_format_int_16<Writer, uint64_t>(writer, state, "0123456789ABCDEFX", args, arg++);
                     break;
                 case 'f':
                 case 'F':
-                    print2_format_float<Writer, double>(writer, state, std::forward<Arguments<Writer> >(args), arg++);
+                    print2_format_float<Writer, double>(writer, state, args, arg++);
                     break;
                 case 'e':
-                    print2_format_float_exp<Writer, double>(writer, state, std::forward<Arguments<Writer> >(args), arg++);
+                    print2_format_float_exp<Writer, double>(writer, state, args, arg++);
                     break;
                 case 'g':
-                    print2_format_float_shortest<Writer, double>(writer, state, std::forward<Arguments<Writer> >(args), arg++);
+                    print2_format_float_shortest<Writer, double>(writer, state, args, arg++);
                     break;
                 case 'E':
                 case 'a':
@@ -1090,13 +1090,13 @@ int print2_helper(Writer& writer, State& state, const char* format, Arguments<Wr
                 case 'G':
                     return print2_error("E/a/A/G not supported");
                 case 'c':
-                    print2_format_ch<Writer>(writer, state, std::forward<Arguments<Writer> >(args), arg++);
+                    print2_format_ch<Writer>(writer, state, args, arg++);
                     break;
                 case 's':
-                    print2_format_str(writer, state, std::forward<Arguments<Writer> >(args), arg++);
+                    print2_format_str(writer, state, args, arg++);
                     break;
                 case 'p':
-                    print2_format_int_16<Writer, void*, uintptr_t>(writer, state, "0123456789abcdefx", std::forward<Arguments<Writer> >(args), arg++);
+                    print2_format_int_16<Writer, void*, uintptr_t>(writer, state, "0123456789abcdefx", args, arg++);
                     break;
                 case 'n': {
                     int* ptr = ArgumentGetter<Writer, int*>::get(args, arg++);
