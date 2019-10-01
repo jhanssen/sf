@@ -1013,8 +1013,8 @@ struct ArgumentStore
 template<typename Writer>
 struct Arguments
 {
-    Argument<Writer>* args;
-    size_t count;
+    const Argument<Writer>* args;
+    const size_t count;
 
     Arguments() : args(nullptr), count(0) { }
     template<typename ...Args>
