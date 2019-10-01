@@ -1253,7 +1253,7 @@ inline ArgumentStore<Writer, Args...>::ArgumentStore(Args&& ...args)
 {
 }
 
-int print2_parse_state(const char* format, int formatoff, State& state)
+inline int print2_parse_state(const char* format, int formatoff, State& state)
 {
     enum { Parse_Flags, Parse_Width, Parse_Precision, Parse_Length } parseState = Parse_Flags;
 
