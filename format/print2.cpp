@@ -112,11 +112,9 @@ make_array(const T& value, index_sequence<Is...>)
 template<typename... Ts> using void_t = typename detail::make_void<Ts...>::type;
 
 template<typename, typename = void> struct has_global_to_string : std::false_type {};
-template<typename, typename = void> struct has_member_to_string_ref : std::false_type {};
-template<typename, typename = void> struct has_member_to_string_ptr : std::false_type {};
+template<typename, typename = void> struct has_member_to_string : std::false_type {};
 template<typename T> struct has_global_to_string<T, void_t<decltype(to_string(std::declval<T>()))> > : std::true_type {};
-template<typename T> struct has_member_to_string_ref<T, void_t<decltype(std::declval<T>().to_string())> > : std::true_type {};
-template<typename T> struct has_member_to_string_ptr<T, void_t<decltype(std::declval<T>()->to_string())> > : std::true_type {};
+template<typename T> struct has_member_to_string<T, void_t<decltype(std::declval<T>().to_string())> > : std::true_type {};
 
 template<class T>
 struct is_c_string : std::integral_constant<
@@ -139,8 +137,7 @@ struct is_stringish : std::integral_constant<
     bool,
     is_c_string<T>::value ||
     has_global_to_string<T>::value ||
-    has_member_to_string_ref<T>::value ||
-    has_member_to_string_ptr<T>::value ||
+    has_member_to_string<T>::value ||
     std::is_same<std::string, typename std::decay<T>::type>::value>
 {
 };
@@ -651,6 +648,39 @@ void print2_format_int_16(Writer& writer, const State& state, const char* alphab
 }
 
 template<typename Writer>
+void print2_format_ptr(Writer& writer, const State& state, const char* alphabet, const Arguments<Writer>& args, int argno)
+{
+    uintptr_t number = ArgumentGetter<Writer, void*, uintptr_t>::get(args, argno);
+    typedef std::numeric_limits<uintptr_t> Info;
+
+    const int digits = Info::digits10;
+    const int bufsize = digits + 2;
+
+    char buffer[bufsize];
+    char* bufptr = buffer;
+    char extra[2] = { '0', 'x' };
+
+    if (number == 0) {
+        *bufptr++ = '(';
+        *bufptr++ = 'n';
+        *bufptr++ = 'i';
+        *bufptr++ = 'l';
+        *bufptr++ = ')';
+        extra[0] = 0;
+    } else {
+        char* p_first = bufptr;
+        while (number != 0)
+        {
+            *bufptr++ = alphabet[number & 0xf];
+            number >>= 4;
+        }
+        std::reverse(p_first, bufptr);
+    }
+
+    print2_format_buffer(writer, state, buffer, bufptr - buffer, extra, 2);
+}
+
+template<typename Writer>
 void print2_format_generic(Writer& writer, const State& state, const typename Argument<Writer>::StringType& str)
 {
     size_t sz = str.len;
@@ -749,6 +779,24 @@ Argument<Writer> make_arg(Arg&& arg)
     return a;
 }
 
+template<typename Writer, typename Arg, typename std::enable_if<!std::is_same<int*, typename std::remove_reference<Arg>::type>::value && std::is_pointer<typename std::remove_reference<Arg>::type>::value, void>::type* = nullptr>
+Argument<Writer> make_arg(Arg&& arg)
+{
+    Argument<Writer> a;
+    a.type = Argument<Writer>::Pointer;
+    a.value.ptr = arg;
+    return a;
+}
+
+template<typename Writer, typename Arg, typename std::enable_if<std::is_same<std::nullptr_t, typename std::remove_reference<Arg>::type>::value, void>::type* = nullptr>
+Argument<Writer> make_arg(Arg&& arg)
+{
+    Argument<Writer> a;
+    a.type = Argument<Writer>::Pointer;
+    a.value.ptr = nullptr;
+    return a;
+}
+
 template<typename Writer, typename Arg, typename std::enable_if<has_global_to_string<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 Argument<Writer> make_arg(Arg&& arg)
 {
@@ -763,7 +811,7 @@ Argument<Writer> make_arg(Arg&& arg)
     return a;
 }
 
-template<typename Writer, typename Arg, typename std::enable_if<has_member_to_string_ref<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
+template<typename Writer, typename Arg, typename std::enable_if<has_member_to_string<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
 Argument<Writer> make_arg(Arg&& arg)
 {
     Argument<Writer> a;
@@ -772,20 +820,6 @@ Argument<Writer> make_arg(Arg&& arg)
             typedef typename std::decay<Arg>::type ArgType;
             const ArgType& val = *reinterpret_cast<const ArgType*>(ptr);
             const std::string& str = val.to_string();
-            print2_format_generic(writer, state, typename Argument<Writer>::StringType { str.c_str(), str.size() });
-        } };
-    return a;
-}
-
-template<typename Writer, typename Arg, typename std::enable_if<has_member_to_string_ptr<typename std::decay<Arg>::type>::value, void>::type* = nullptr>
-Argument<Writer> make_arg(Arg&& arg)
-{
-    Argument<Writer> a;
-    a.type = Argument<Writer>::Custom;
-    a.value.custom = { &arg, [](Writer& writer, const State& state, const void* ptr) {
-            typedef typename std::decay<Arg>::type ArgType;
-            const ArgType& val = *reinterpret_cast<const ArgType*>(ptr);
-            const std::string& str = val->to_string();
             print2_format_generic(writer, state, typename Argument<Writer>::StringType { str.c_str(), str.size() });
         } };
     return a;
@@ -973,7 +1007,7 @@ int print2_helper(Writer& writer, State& state, const char* format, const Argume
                     print2_format_str(writer, state, args, arg++);
                     break;
                 case 'p':
-                    print2_format_int_16<Writer, void*, uintptr_t>(writer, state, "0123456789abcdefx", args, arg++);
+                    print2_format_ptr<Writer>(writer, state, "0123456789abcdefx", args, arg++);
                     break;
                 case 'n': {
                     int* ptr = ArgumentGetter<Writer, int*>::get(args, arg++);
@@ -1010,6 +1044,14 @@ int print2(const char* format, Args&& ...args)
     State state;
     FileWriter writer(stdout);
     return print2_helper(writer, state, format, Arguments<FileWriter>(make_args<FileWriter>(args...)));
+}
+
+template<typename ...Args>
+int snprint2(char* buffer, size_t bufsiz, const char* format, Args&& ...args)
+{
+    State state;
+    BufferWriter writer(buffer, bufsiz);
+    return print2_helper(writer, state, format, Arguments<BufferWriter>(make_args<BufferWriter>(args...)));
 }
 
 struct Foobar
@@ -1066,15 +1108,8 @@ int main(int, char**)
     Foobar2 foobar2("trall", 42);
     int ting1 = 0, ting2 = 0;
     print2("hello %n%d %f '%*.*s' '%s' %n\n", &ting1, 99, 1.234, 10, 2, "hi ho", foobar, &ting2);
-    print2("got ting %d %d (%s)\n", ting1, ting2, foobar2);
+    print2("got ting %d %d (%s) %p\n", ting1, ting2, foobar2, &foobar2);
     //print2("hello %d '%s'\n", 2, "foobar");
-#if 0
-    // char buf[1024];
-    Foobar foobar("abc", 123);
-    Foobar2 foobar3("trall", 42);
-    print("hello '%.*s' '%s' '%10.7s' %f\n", 2, "trakk", foobar, foobar3, 1.234);
-    // printf("%d -> '%s'\n", i, buf);
-    //const int i = snprint(buf, sizeof(buf), "hello %s\n", "hello");
 
     std::string tang = "tang";
     char buffer1[1024];
@@ -1088,7 +1123,9 @@ int main(int, char**)
     for (int i = 0; i < Iter; ++i) {
         //snprint(buffer, sizeof(buffer), "hello2 %f\n", 12234.15281);
         //snprint(buffer, sizeof(buffer), "hello2 %20s\n", "hipphipp");
-        r1 = snprint(buffer1, sizeof(buffer1), "hello2 %#x%s%*u%p%s%f%-+20d\n%n", 1234567, "jappja", 140, 12345, &fn1, "trall og trall", 123.456, 99, &fn1);
+        r1 = snprint2(buffer1, sizeof(buffer1), "hello2 %#x%s%*u%p%s%f%-+20d\n%n", 1234567, "jappja", 140, 12345, &fn1, "trall og trall", 123.456, 99, &fn1);
+        //r1 = snprint2(buffer1, sizeof(buffer1), "h%p\n%n", &foobar, &fn1);
+        //r1 = snprint2(buffer1, sizeof(buffer1), "h%p\n%n", &fn1, &fn1);
     }
 
     auto t2 = steady_clock::now();
@@ -1099,6 +1136,8 @@ int main(int, char**)
         //snprintf(buffer, sizeof(buffer), "hello1 %f\n", 12234.15281);
         //snprintf(buffer, sizeof(buffer), "hello1 %20s\n", "hipphipp");
         r2 = snprintf(buffer2, sizeof(buffer2), "hello2 %#x%s%*u%p%s%f%-+20d\n%n", 1234567, "jappja", 140, 12345, &fn1, "trall og trall", 123.456, 99, &fn2);
+        //r2 = snprintf(buffer2, sizeof(buffer2), "h%p\n%n", &foobar, &fn2);
+        //r2 = snprint2(buffer2, sizeof(buffer2), "h%p\n%n", &fn1, &fn2);
     }
 
     auto t4 = steady_clock::now();
@@ -1126,7 +1165,6 @@ int main(int, char**)
     } else {
         printf("verify failed at %d (%d,%d) - (%d,%d)\n", off, fn1, fn2, r1, r2);
     }
-#endif
 
     return 0;
 }
