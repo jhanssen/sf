@@ -1258,7 +1258,7 @@ int print2_parse_state(const char* format, int formatoff, State& state)
     enum { Parse_Flags, Parse_Width, Parse_Precision, Parse_Length } parseState = Parse_Flags;
 
     // Flags
-    for (; parseState == Parse_Flags; ++formatoff) {
+    for (;; ++formatoff) {
         switch (format[formatoff]) {
         case '-':
             state.flags |= State::Flag_LeftJustify;
@@ -1281,6 +1281,8 @@ int print2_parse_state(const char* format, int formatoff, State& state)
             parseState = Parse_Width;
             break;
         }
+        if (parseState != Parse_Flags)
+            break;
     }
 
     // Width
@@ -1365,7 +1367,7 @@ int print2_helper(Writer& writer, State& state, const char* format, Arguments<Wr
         case '%':
             clearState(state);
             if (format[formatoff + 1] != '%') {
-                formatoff = print2_parse_state(format, formatoff, state);
+                formatoff = print2_parse_state(format, formatoff + 1, state);
                 if (state.width == State::Star)
                     state.width = ArgumentGetter<Writer, int32_t>::get(args, arg++);
                 if (state.precision == State::Star)
